@@ -26,13 +26,17 @@ def load_shapes_df(shapefile_path, transform):
     shapes_df = shapes_df.merge(shapes_df["pixel_geometry"].bounds.astype(int), left_index=True, right_index=True)
     return shapes_df
 
-def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size):
+def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, lock):
     base_window_polygon = shp.geometry.Polygon([[0,0], [0,tile_size], [tile_size,tile_size], [tile_size,0]])
     window_polygon = shp.affinity.translate(base_window_polygon, row_offset, col_offset)
     
     read_window =rio.windows.Window(col_offset, row_offset, tile_size, tile_size)
+
+    lock.acquire()
     tile = tiff_handler.read(window=read_window).transpose(1,2,0).copy()
-    
+    lock.release()
+
+
     shapes = shapes_df[~shapes_df["pixel_geometry"].intersection(window_polygon).is_empty]
     result_shapes = []
     for shape in shapes.itertuples():
@@ -47,13 +51,13 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size):
                               "bbox": bbox})
     return tile, result_shapes
 
-def write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir, row_index, return_dict):
+def write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir, row_index, return_dict, lock):
     annotations = []
     pos = 0
     for col in colrange:
         index = row_index*len(colrange)+pos
         tile, shapes = extract_tile(tiff_handler, shapes_df, 
-                                    row, col, tile_size)
+                                    row, col, tile_size, lock)
         
         alpha = tile[:,:,3].astype(np.float32)/255
         if len(shapes) > 0 or alpha.mean() > max_empty_pixels_threshold:
@@ -78,10 +82,11 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
     
     manager = multiprocessing.Manager()
     return_dict = manager.dict()
+    lock = manager.Lock()
     jobs = []
     for row in rowrange:
-        new_handler_tiff = copy.copy(tiff_handler)
-        p = multiprocessing.Process(target=write, args=(colrange, new_handler_tiff , shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir, row_index, return_dict))
+        #new_handler_tiff = copy.copy(tiff_handler)
+        p = multiprocessing.Process(target=write, args=(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir, row_index, return_dict, lock))
         jobs.append(p)
         p.start()
         row_index +=1
@@ -89,7 +94,9 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
     for proc in jobs:
         proc.join()
 
-    annotations += return_dict.values()
+    for val in return_dict.values():
+        annotations += val
+
     annotation = gpd.GeoDataFrame(annotations)
     annotation.to_pickle(f"{target_dir}/annotation.pkl")
     annotation.to_csv(f"{target_dir}/annotation.csv")
