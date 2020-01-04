@@ -67,7 +67,6 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
                 if len(shapes) > 0 or alpha.mean() > max_empty_pixels_threshold:
                     cv2.imwrite(f"{target_dir}/patch_{index}.png", 
                                 cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
-
                     annotations += [{"patch_number": index, **s} for s in shapes]
                     index += 1
                 del tile
@@ -101,7 +100,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-col", type=int, default=-1, help="optional: max pixel col for sliding window")
     parser.add_argument("--empty-pixels-threshold", type=float, default=0.5, 
                         help="threshold of max percentage of empty pixels on a tile to use it")
-    parser.add_argument("--target-dir", required=True, help="directory to store dataset")
+    parser.add_argument("--target-dir", default="target_dir", help="directory to store dataset")
     parser.add_argument("--verbose", dest="verbose", action="store_true", default=False,
                         help="whether to be verbose")
     

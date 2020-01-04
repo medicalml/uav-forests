@@ -5,6 +5,7 @@
 
 data
 data/*
+target_dir/*
 
 *.pkl
 *.hd5
