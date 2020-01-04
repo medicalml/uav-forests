@@ -10,6 +10,7 @@ import skimage as ski
 import skimage.io
 import os
 import multiprocessing
+import copy
 
 def geometry_to_pixel_geometry(geometry, transform):
     x, y = geometry.exterior.coords.xy
@@ -46,11 +47,11 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size):
                               "bbox": bbox})
     return tile, result_shapes
 
-def write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir):
+def write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir, row_index, return_dict):
     annotations = []
     pos = 0
     for col in colrange:
-        index = row*len(colrange)+pos
+        index = row_index*len(colrange)+pos
         tile, shapes = extract_tile(tiff_handler, shapes_df, 
                                     row, col, tile_size)
         
@@ -62,22 +63,33 @@ def write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_th
             index += 1
         del tile
         pos+=1
-    return annotations
+
+    return_dict[row_index] = annotations
 
 def rolling_window(tiff_handler, shapes_df, target_dir,
                    min_row, max_row, min_col, max_col, 
                    tile_size, step, 
                    max_empty_pixels_threshold=0.5,
                    progressbar=False):
-    index = 0
     annotations = []
     rowrange = range(min_row, max_row + 1 - step, step)
     colrange = range(min_col, max_col + 1 - step, step)
+    row_index = 0
+    
+    manager = multiprocessing.Manager()
+    return_dict = manager.dict()
+    jobs = []
+    for row in rowrange:
+        new_handler_tiff = copy.copy(tiff_handler)
+        p = multiprocessing.Process(target=write, args=(colrange, new_handler_tiff , shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir, row_index, return_dict))
+        jobs.append(p)
+        p.start()
+        row_index +=1
 
-    for row in tqdm.tqdm(rowrange):
-        row_annot = write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir)
-        annotations += row_annot
+    for proc in jobs:
+        proc.join()
 
+    annotations += return_dict.values()
     annotation = gpd.GeoDataFrame(annotations)
     annotation.to_pickle(f"{target_dir}/annotation.pkl")
     annotation.to_csv(f"{target_dir}/annotation.csv")
