@@ -51,28 +51,28 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, loc
                               "bbox": bbox})
     return tile, result_shapes
 
-def write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir, row_index, return_dict, lock):
+def write(colrange, tiff_handler, shapes_df, rows, tile_size, max_empty_pixels_threshold, target_dir, row_indexes, return_dict, lock):
     annotations = []
     pos = 0
-    for col in tqdm.tqdm(colrange):
-        #print(row_index, colrange, pos)
-        index = row_index*len(colrange)+pos
-        
-        tile, shapes = extract_tile(tiff_handler, shapes_df, 
-                                    row, col, tile_size, lock)
-        
-        alpha = tile[:,:,3].astype(np.float32)/255
-        if len(shapes) > 0 or alpha.mean() > max_empty_pixels_threshold:
-            print(index)
-            cv2.imwrite(f"{target_dir}/patch_{index}.png", 
-                        cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
-            annotations += [{"patch_number": index, **s} for s in shapes]
-            index += 1
-        del tile
-        pos+=1
-    lock.acquire()
+    for row, row_index in zip(rows, row_indexes):
+        for col in tqdm.tqdm(colrange):
+            #print(row_index, colrange, pos)
+            index = row_index*len(colrange)+pos
+            
+            tile, shapes = extract_tile(tiff_handler, shapes_df, 
+                                        row, col, tile_size, lock)
+            
+            alpha = tile[:,:,3].astype(np.float32)/255
+            if len(shapes) > 0 or alpha.mean() > max_empty_pixels_threshold:
+                print(index)
+                cv2.imwrite(f"{target_dir}/patch_{index}.png", 
+                            cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
+                annotations += [{"patch_number": index, **s} for s in shapes]
+                index += 1
+            del tile
+            pos+=1
+    
     return_dict[row_index] = annotations
-    lock.release()
 
 def rolling_window(tiff_handler, shapes_df, target_dir,
                    min_row, max_row, min_col, max_col, 
@@ -87,9 +87,22 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
     return_dict = manager.dict()
     lock = manager.Lock()
     jobs = []
+    row_indexes = {}
+    rows = {}
     for row_index, row in enumerate(rowrange):
         #new_handler_tiff = copy.copy(tiff_handler)
-        p = multiprocessing.Process(target=write, args=(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir, row_index, return_dict, lock))
+        act_index = row_index%multiprocessing.cpu_count()
+        
+        if act_index not in row_indexes.keys():
+            row_indexes[act_index] = []
+        if act_index not in rows.keys():
+            rows[act_index] = []
+        
+        row_indexes[act_index] += [row_index] 
+        rows[act_index] += [row]
+
+    for i in row_indexes.keys():
+        p = multiprocessing.Process(target=write, args=(colrange, tiff_handler, shapes_df, rows[i], tile_size, max_empty_pixels_threshold, target_dir, row_indexes[i], return_dict, lock))
         jobs.append(p)
         p.start()
 
