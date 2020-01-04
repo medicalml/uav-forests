@@ -1,6 +1,9 @@
 # Created by https://www.gitignore.io/api/data,images,gis,python,pycharm+all,jupyternotebooks,visualstudiocode
 # Edit at https://www.gitignore.io/?templates=data,images,gis,python,pycharm+all,jupyternotebooks,visualstudiocode
 
+.vscode
+
+data
 data/*
 
 *.pkl

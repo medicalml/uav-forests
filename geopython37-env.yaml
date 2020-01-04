@@ -1,0 +1,35 @@
+name: geopython37
+channels:
+  - pytorch
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.7
+  - pip
+  - rasterio=1.1.1
+  - fiona
+  - numpy
+  - tqdm
+  - ipython
+  - jupyter
+  - jupyterlab
+  - ipywidgets
+  - pandas
+  - geopandas
+  - dask
+  - shapely
+  - scikit-image
+  - opencv  
+  - scipy
+  - pytorch
+  - torchvision
+  - cudatoolkit=10.1
+  - matplotlib
+  - plotly
+  - seaborn
+  - folium
+  - requests
+  - sqlalchemy
+  - urllib3
+  - yaml
+  - nodejs
