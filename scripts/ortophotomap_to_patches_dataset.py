@@ -54,8 +54,8 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, loc
 def write(colrange, tiff_handler, shapes_df, rows, tile_size, max_empty_pixels_threshold, target_dir, row_indexes, return_dict, lock):
     annotations = []
     pos = 0
-    for row, row_index in zip(rows, row_indexes):
-        for col in tqdm.tqdm(colrange):
+    for row, row_index in tqdm.tqdm(zip(rows, row_indexes), total=len(rows)):
+        for col in colrange:
             #print(row_index, colrange, pos)
             index = row_index*len(colrange)+pos
             
@@ -64,7 +64,6 @@ def write(colrange, tiff_handler, shapes_df, rows, tile_size, max_empty_pixels_t
             
             alpha = tile[:,:,3].astype(np.float32)/255
             if len(shapes) > 0 or alpha.mean() > max_empty_pixels_threshold:
-                print(index)
                 cv2.imwrite(f"{target_dir}/patch_{index}.png", 
                             cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
                 annotations += [{"patch_number": index, **s} for s in shapes]
@@ -110,7 +109,6 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
         proc.join()
 
     for val in return_dict.values():
-        print(val)
         annotations += val
 
     annotation = gpd.GeoDataFrame(annotations)
