@@ -9,7 +9,7 @@ import cv2
 import skimage as ski
 import skimage.io
 import os
-
+import multiprocessing
 
 def geometry_to_pixel_geometry(geometry, transform):
     x, y = geometry.exterior.coords.xy
@@ -46,6 +46,24 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size):
                               "bbox": bbox})
     return tile, result_shapes
 
+def write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir):
+    annotations = []
+    pos = 0
+    for col in colrange:
+        index = row*len(colrange)+pos
+        tile, shapes = extract_tile(tiff_handler, shapes_df, 
+                                    row, col, tile_size)
+        
+        alpha = tile[:,:,3].astype(np.float32)/255
+        if len(shapes) > 0 or alpha.mean() > max_empty_pixels_threshold:
+            cv2.imwrite(f"{target_dir}/patch_{index}.png", 
+                        cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
+            annotations += [{"patch_number": index, **s} for s in shapes]
+            index += 1
+        del tile
+        pos+=1
+    return annotations
+
 def rolling_window(tiff_handler, shapes_df, target_dir,
                    min_row, max_row, min_col, max_col, 
                    tile_size, step, 
@@ -55,22 +73,10 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
     annotations = []
     rowrange = range(min_row, max_row + 1 - step, step)
     colrange = range(min_col, max_col + 1 - step, step)
-    with tqdm.tqdm(desc="Extracting...",
-                   total=len(colrange) * len(rowrange),
-                   disable=not progressbar) as pbar:
-        for row in rowrange:
-            for col in colrange:
-                tile, shapes = extract_tile(tiff_handler, shapes_df, 
-                                            row, col, tile_size)
-                
-                alpha = tile[:,:,3].astype(np.float32)/255
-                if len(shapes) > 0 or alpha.mean() > max_empty_pixels_threshold:
-                    cv2.imwrite(f"{target_dir}/patch_{index}.png", 
-                                cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
-                    annotations += [{"patch_number": index, **s} for s in shapes]
-                    index += 1
-                del tile
-                pbar.update(1)
+
+    for row in tqdm.tqdm(rowrange):
+        row_annot = write(colrange, tiff_handler, shapes_df, row, tile_size, max_empty_pixels_threshold, target_dir)
+        annotations += row_annot
 
     annotation = gpd.GeoDataFrame(annotations)
     annotation.to_pickle(f"{target_dir}/annotation.pkl")
@@ -99,9 +105,9 @@ if __name__ == "__main__":
     parser.add_argument("--min-col", type=int, default=0, help="optional: col offset for sliding window")
     parser.add_argument("--max-col", type=int, default=-1, help="optional: max pixel col for sliding window")
     parser.add_argument("--empty-pixels-threshold", type=float, default=0.5, 
-                        help="threshold of max percentage of empty pixels on a tile to use it")
-    parser.add_argument("--target-dir", default="target_dir", help="directory to store dataset")
-    parser.add_argument("--verbose", dest="verbose", action="store_true", default=False,
+                        help="threshold of max part of empty pixels on a tile to use it")
+    parser.add_argument("--target-dir", default="data_out", help="directory to store dataset")
+    parser.add_argument("--verbose", dest="verbose", action="store_true",
                         help="whether to be verbose")
     
     args = parser.parse_args()
