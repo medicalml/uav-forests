@@ -52,9 +52,9 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, loc
                               "bbox": bbox})
     return tile, result_shapes
 
-def write(colrange, tiff_handler, shapes_df, rows_and_indexes, tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index):
+def write(colrange, tiff_handler, shapes_df, rows_and_indexes, tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index, done_indicator):
     annotations = []
-    for row_index, row in tqdm.tqdm(rows_and_indexes, total=len(rows_and_indexes)):
+    for row_index, row in rows_and_indexes:
         for col_nr, col in enumerate(colrange):
             index = row_index*len(colrange)+col_nr
             
@@ -68,8 +68,19 @@ def write(colrange, tiff_handler, shapes_df, rows_and_indexes, tile_size, max_em
                 annotations += [{"patch_number": index, **s} for s in shapes]
 
             del tile
+        done_indicator.put(1)
 
     return_dict[cpu_index] = annotations
+
+def my_progressbar(task_number, done_indicator):
+    counter = 0
+    pbar = tqdm.tqdm(total=task_number)
+    while counter != task_number:
+        done_indicator.get()
+        pbar.update(1)
+        counter += 1
+
+    pbar.close()
 
 def rolling_window(tiff_handler, shapes_df, target_dir,
                    min_row, max_row, min_col, max_col, 
@@ -83,6 +94,7 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
     manager = multiprocessing.Manager()
     return_dict = manager.dict()
     lock = manager.Lock()
+    done_indicator = multiprocessing.Queue()
     jobs = []
     rows_and_indexes = {}
     rows_per_cpu = len(rowrange)//multiprocessing.cpu_count()
@@ -95,7 +107,12 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
         rows_and_indexes[cpu_index] += [(row_index, row)]
 
     for cpu_index in rows_and_indexes.keys():
-        p = multiprocessing.Process(target=write, args=(colrange, tiff_handler, shapes_df, rows_and_indexes[cpu_index], tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index))
+        p = multiprocessing.Process(target=write, args=(colrange, tiff_handler, shapes_df, rows_and_indexes[cpu_index], tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index, done_indicator))
+        jobs.append(p)
+        p.start()
+    
+    if progressbar:
+        p = multiprocessing.Process(target=my_progressbar, args=(len(rowrange), done_indicator))
         jobs.append(p)
         p.start()
 
@@ -108,6 +125,7 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
         for annotation in return_dict[cpu_index]:
             if max_temporary_index < annotation['patch_number']:
                 max_temporary_index = annotation['patch_number']
+        
         for i, annotation in enumerate(return_dict[cpu_index]):
             return_dict[cpu_index][i]['patch_number'] = return_dict[cpu_index][i]['patch_number'] + prev_index
         
