@@ -6,7 +6,8 @@
 data
 data/*
 target_dir/*
-
+.vscode
+.idea
 *.pkl
 *.hd5
 *.shp

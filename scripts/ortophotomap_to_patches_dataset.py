@@ -11,6 +11,7 @@ import skimage.io
 import os
 import multiprocessing
 import copy
+import shutil
 
 def geometry_to_pixel_geometry(geometry, transform):
     x, y = geometry.exterior.coords.xy
@@ -51,13 +52,11 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, loc
                               "bbox": bbox})
     return tile, result_shapes
 
-def write(colrange, tiff_handler, shapes_df, rows, tile_size, max_empty_pixels_threshold, target_dir, row_indexes, return_dict, lock):
+def write(colrange, tiff_handler, shapes_df, rows_and_indexes, tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index):
     annotations = []
-    pos = 0
-    for row, row_index in tqdm.tqdm(zip(rows, row_indexes), total=len(rows)):
-        for col in colrange:
-            #print(row_index, colrange, pos)
-            index = row_index*len(colrange)+pos
+    for row_index, row in tqdm.tqdm(rows_and_indexes, total=len(rows_and_indexes)):
+        for col_nr, col in enumerate(colrange):
+            index = row_index*len(colrange)+col_nr
             
             tile, shapes = extract_tile(tiff_handler, shapes_df, 
                                         row, col, tile_size, lock)
@@ -67,11 +66,10 @@ def write(colrange, tiff_handler, shapes_df, rows, tile_size, max_empty_pixels_t
                 cv2.imwrite(f"{target_dir}/patch_{index}.png", 
                             cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
                 annotations += [{"patch_number": index, **s} for s in shapes]
-                index += 1
+
             del tile
-            pos+=1
-    
-    return_dict[row_index] = annotations
+
+    return_dict[cpu_index] = annotations
 
 def rolling_window(tiff_handler, shapes_df, target_dir,
                    min_row, max_row, min_col, max_col, 
@@ -86,30 +84,35 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
     return_dict = manager.dict()
     lock = manager.Lock()
     jobs = []
-    row_indexes = {}
-    rows = {}
+    rows_and_indexes = {}
+    rows_per_cpu = len(rowrange)//multiprocessing.cpu_count()
     for row_index, row in enumerate(rowrange):
-        #new_handler_tiff = copy.copy(tiff_handler)
-        act_index = row_index%multiprocessing.cpu_count()
+        cpu_index = row_index//rows_per_cpu
         
-        if act_index not in row_indexes.keys():
-            row_indexes[act_index] = []
-        if act_index not in rows.keys():
-            rows[act_index] = []
+        if cpu_index not in rows_and_indexes.keys():
+            rows_and_indexes[cpu_index] = []
         
-        row_indexes[act_index] += [row_index] 
-        rows[act_index] += [row]
+        rows_and_indexes[cpu_index] += [(row_index, row)]
 
-    for i in row_indexes.keys():
-        p = multiprocessing.Process(target=write, args=(colrange, tiff_handler, shapes_df, rows[i], tile_size, max_empty_pixels_threshold, target_dir, row_indexes[i], return_dict, lock))
+    for cpu_index in rows_and_indexes.keys():
+        p = multiprocessing.Process(target=write, args=(colrange, tiff_handler, shapes_df, rows_and_indexes[cpu_index], tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index))
         jobs.append(p)
         p.start()
 
     for proc in jobs:
         proc.join()
 
-    for val in return_dict.values():
-        annotations += val
+    prev_index = 0
+    for cpu_index in sorted(return_dict.keys()):
+        max_temporary_index = 0
+        for annotation in return_dict[cpu_index]:
+            if max_temporary_index < annotation['patch_number']:
+                max_temporary_index = annotation['patch_number']
+        for i, annotation in enumerate(return_dict[cpu_index]):
+            return_dict[cpu_index][i]['patch_number'] = return_dict[cpu_index][i]['patch_number'] + prev_index
+        
+        annotations += return_dict[cpu_index]
+        prev_index += max_temporary_index
 
     annotation = gpd.GeoDataFrame(annotations)
     annotation.to_pickle(f"{target_dir}/annotation.pkl")
@@ -137,10 +140,10 @@ if __name__ == "__main__":
     parser.add_argument("--max-row", type=int, default=-1, help="optional: max pixel row for sliding window")
     parser.add_argument("--min-col", type=int, default=0, help="optional: col offset for sliding window")
     parser.add_argument("--max-col", type=int, default=-1, help="optional: max pixel col for sliding window")
-    parser.add_argument("--empty-pixels-threshold", type=float, default=0.5, 
-                        help="threshold of max part of empty pixels on a tile to use it")
-    parser.add_argument("--target-dir", default="data_out", help="directory to store dataset")
-    parser.add_argument("--verbose", dest="verbose", action="store_true",
+    parser.add_argument("--empty-pixels-threshold", type=float, default=0.5,
+                        help="threshold of max percentage of empty pixels on a tile to use it")
+    parser.add_argument("--target-dir", required=True, help="directory to store dataset")
+    parser.add_argument("--verbose", dest="verbose", action="store_true", default=False,
                         help="whether to be verbose")
     
     args = parser.parse_args()
@@ -148,6 +151,9 @@ if __name__ == "__main__":
     with rio.open(args.geotiff) as geotiff:
         
         if not os.path.exists(args.target_dir):
+            os.makedirs(args.target_dir)
+        else: 
+            shutil.rmtree(args.target_dir)
             os.makedirs(args.target_dir)
 
         img_shape = geotiff.shape
