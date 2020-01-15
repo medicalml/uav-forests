@@ -33,11 +33,17 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, loc
     
     read_window =rio.windows.Window(col_offset, row_offset, tile_size, tile_size)
 
-    lock.acquire()
-    tile = tiff_handler.read(window=read_window).transpose(1,2,0).copy()
-    lock.release()
-
-
+    #lock.acquire()
+    
+    some_window = None
+    with lock:
+        while some_window is None:
+            try:
+                some_window = tiff_handler.read(window=read_window)
+            except rasterio.errors.RasterioIOError as e:
+                pass #print("error")
+    
+    tile = some_window.transpose(1,2,0).copy()
     shapes = shapes_df[~shapes_df["pixel_geometry"].intersection(window_polygon).is_empty]
     result_shapes = []
     for shape in shapes.itertuples():
@@ -50,6 +56,7 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, loc
                               "local_pixel_shape": translated_shape,
                               "cut_local_pixel_shape": cut_shape, 
                               "bbox": bbox})
+
     return tile, result_shapes
 
 def write(colrange, tiff_handler, shapes_df, rows_and_indexes, tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index, done_indicator):
@@ -58,10 +65,10 @@ def write(colrange, tiff_handler, shapes_df, rows_and_indexes, tile_size, max_em
         for col_nr, col in enumerate(colrange):
             index = row_index*len(colrange)+col_nr
             
-            tile, shapes = extract_tile(tiff_handler, shapes_df, 
-                                        row, col, tile_size, lock)
-            
+            tile, shapes = extract_tile(tiff_handler, shapes_df, row, col, tile_size, lock)
+            #second_lock.acquire()
             alpha = tile[:,:,3].astype(np.float32)/255
+            #second_lock.release()
             if len(shapes) > 0 or alpha.mean() > max_empty_pixels_threshold:
                 cv2.imwrite(f"{target_dir}/patch_{index}.png", 
                             cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
@@ -85,19 +92,30 @@ def my_progressbar(task_number, done_indicator):
 def rolling_window(tiff_handler, shapes_df, target_dir,
                    min_row, max_row, min_col, max_col, 
                    tile_size, step, 
-                   max_empty_pixels_threshold=0.5,
-                   progressbar=False):
+                   max_empty_pixels_threshold,
+                   progressbar, single_process):
+    
     annotations = []
     rowrange = range(min_row, max_row + 1 - step, step)
     colrange = range(min_col, max_col + 1 - step, step)
     
     manager = multiprocessing.Manager()
+    
     return_dict = manager.dict()
-    lock = manager.Lock()
+    
     done_indicator = multiprocessing.Queue()
     jobs = []
     rows_and_indexes = {}
-    rows_per_cpu = len(rowrange)//multiprocessing.cpu_count()
+    if single_process:
+        rows_per_cpu = len(rowrange)
+    else:
+        rows_per_cpu = len(rowrange)//multiprocessing.cpu_count()
+    
+    if rows_per_cpu == 0:
+        rows_per_cpu = 1
+    
+    lock = multiprocessing.RLock()
+
     for row_index, row in enumerate(rowrange):
         cpu_index = row_index//rows_per_cpu
         
@@ -119,18 +137,8 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
     for proc in jobs:
         proc.join()
 
-    prev_index = 0
     for cpu_index in sorted(return_dict.keys()):
-        max_temporary_index = 0
-        for annotation in return_dict[cpu_index]:
-            if max_temporary_index < annotation['patch_number']:
-                max_temporary_index = annotation['patch_number']
-        
-        for i, annotation in enumerate(return_dict[cpu_index]):
-            return_dict[cpu_index][i]['patch_number'] = return_dict[cpu_index][i]['patch_number'] + prev_index
-        
         annotations += return_dict[cpu_index]
-        prev_index += max_temporary_index
 
     annotation = gpd.GeoDataFrame(annotations)
     annotation.to_pickle(f"{target_dir}/annotation.pkl")
@@ -164,6 +172,9 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", dest="verbose", action="store_true", default=False,
                         help="whether to be verbose")
     
+    parser.add_argument("--single-process", dest="single_process", action="store_true", default=False,
+                        help="whether use only one cpu")
+    
     args = parser.parse_args()
     
     with rio.open(args.geotiff) as geotiff:
@@ -176,9 +187,11 @@ if __name__ == "__main__":
 
         img_shape = geotiff.shape
         shapes_df = load_shapes_df(args.shapefile, geotiff.transform)
-
+        #print("SHAPE", img_shape)
+        #print(args.single_process)
         rolling_window(geotiff, shapes_df, args.target_dir,
                        args.min_row, args.max_row if args.max_row >=0 else img_shape[0], 
                        args.min_col, args.max_col if args.max_col >=0 else img_shape[1],
                        args.tile_size, args.step, args.empty_pixels_threshold,
-                       args.verbose)
+                       args.verbose, args.single_process)
+        
