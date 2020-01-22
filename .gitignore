@@ -6,6 +6,9 @@
 data
 data/*
 target_dir/*
+test/
+train/
+val/
 .vscode
 .idea
 *.pkl
