@@ -41,6 +41,8 @@ class ForestIterator:
                                                                              int(normalized_red_channel_img.shape[1]))
                                                                   )]), 0, -1)
         ndvi = (nir_img - normalized_red_channel_img) / (normalized_red_channel_img + nir_img)
+        ndvi = (ndvi + 1)/2
+        ndvi = np.float32(ndvi)
         return ndvi
 
     def __getitem__(self, item):
@@ -66,7 +68,7 @@ class ForestIterator:
         masked_ndvi = cv2.bitwise_and(ndvi, ndvi, mask=np.stack(mask))
 
         return {'rgb': masked,
-                'nir': np.moveaxis(masked_ndvi,-1,0),
+                'nir': masked_ndvi,
                 'descr':single_shape['properties']}
 
     def __len__(self):
