@@ -64,7 +64,7 @@ class ForestIterator:
 
         masked = cv2.bitwise_and(img, img, mask=np.stack([mask, mask, mask]))
         ndvi = self.create_ndvi((x.min(), y.min()), (x.max(), y.max()))
-        print(ndvi.shape, mask.shape)
+        #print(ndvi.shape, mask.shape)
         masked_ndvi = cv2.bitwise_and(ndvi, ndvi, mask=np.stack(mask))
 
         return {'rgb': masked,
