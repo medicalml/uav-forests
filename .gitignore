@@ -3,6 +3,8 @@
 
 .vscode
 
+tboard_logs/
+
 data
 data/*
 

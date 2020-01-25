@@ -19,6 +19,7 @@ dependencies:
   - dask
   - shapely
   - scikit-image
+  - scikit-learn
   - opencv  
   - scipy
   - pytorch
@@ -33,3 +34,7 @@ dependencies:
   - urllib3
   - yaml
   - nodejs
+  - pip:
+    - cython
+    - git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI
+    - git+https://github.com/facebookresearch/detectron2.git
