@@ -1,10 +1,8 @@
-import os
 import fiona
 import rasterio
 import rasterio.mask
 import numpy as np
 import cv2
-import copy
 
 
 def initiate_geoms(shp):
@@ -13,13 +11,15 @@ def initiate_geoms(shp):
     else:
         return [poly[0] for poly in shp['coordinates']]
 
+
 class ForestIterator:
-    def __init__(self, rgb_tif_path, nir_tif_path, forest_shp_path):
+    def __init__(self, rgb_tif_path, forest_shp_path, nir_tif_path = None):
         self.rgb_path = rgb_tif_path
         self.nir_path = nir_tif_path
         self.shape_path = forest_shp_path
         self.rgb_tif_handler = rasterio.open(rgb_tif_path)
-        self.nir_tif_handler = rasterio.open(nir_tif_path)
+        if self.nir_path is not None:
+            self.nir_tif_handler = rasterio.open(nir_tif_path)
         self.shapes_handler = fiona.open(forest_shp_path)
         self.length = len(self.shapes_handler)
 
@@ -33,7 +33,7 @@ class ForestIterator:
         nir_win = rasterio.windows.Window.from_slices((row_stop, row_start), (col_start, col_stop))
 
         red_channel_img = np.moveaxis(np.stack([self.rgb_tif_handler.read(1, window=rgb_win)]), 0, -1)
-        #red_channel_img = np.expand_dims(rgb_img[:, :, 0], axis=-1)
+
         normalized_red_channel_img = red_channel_img / np.max(red_channel_img)
         nir_img = np.moveaxis(np.stack([self.nir_tif_handler.read(1, window=nir_win,
                                                                   out_shape=(1,
@@ -63,23 +63,18 @@ class ForestIterator:
             cv2.fillPoly(mask, pts=[joint], color=255)
 
         masked = cv2.bitwise_and(img, img, mask=np.stack([mask, mask, mask]))
-        ndvi = self.create_ndvi((x.min(), y.min()), (x.max(), y.max()))
-        #print(ndvi.shape, mask.shape)
-        masked_ndvi = cv2.bitwise_and(ndvi, ndvi, mask=np.stack(mask))
 
-        return {'rgb': masked,
-                'nir': masked_ndvi,
-                'descr':single_shape['properties']}
+        if self.nir_path is not None:
+            ndvi = self.create_ndvi((x.min(), y.min()), (x.max(), y.max()))
+            masked_ndvi = cv2.bitwise_and(ndvi, ndvi, mask=np.stack(mask))
+            return {'rgb': masked,
+                    'ndvi': masked_ndvi,
+                    'description': single_shape['properties']}
+        else:
+            return {
+                'rgb': masked,
+                'description': single_shape['properties']
+            }
 
     def __len__(self):
         return self.length
-
-
-
-
-
-
-if __name__ == '__main__':
-    name = 'Swiebodzin'
-    path = os.path.join('D:', '_drzewaBZBUAS')
-    shapes = os.path.join(path, 'obszar_' + name.lower() + '.shp')
