@@ -1,9 +1,11 @@
 import fiona
 import rasterio as rio
 import rasterio.mask
+import rasterio.plot
 import numpy as np
 import cv2
 from src.utils import infrared
+from src.utils.coordinates_converters import coordinates_to_window
 
 
 class ForestIterator:
@@ -27,23 +29,17 @@ class ForestIterator:
         else:
             return [poly[0] for poly in shp_geometry['coordinates']]
 
-    def create_ndvi(self, rows, cols):
-        row_start, col_start = self.rgb_tif_handler.index(rows[0], rows[1])
-        row_stop, col_stop = self.rgb_tif_handler.index(cols[0], cols[1])
-        rgb_win = rio.windows.Window.from_slices(
-            (row_stop, row_start), (col_start, col_stop))
+    def create_ndvi(self, x_min, y_min, x_max, y_max):
+        rgb_win = coordinates_to_window(self.rgb_tif_handler,
+                                        x_min, y_min, x_max, y_max)
 
-        row_start, col_start = self.nir_tif_handler.index(rows[0], rows[1])
-        row_stop, col_stop = self.nir_tif_handler.index(cols[0], cols[1])
-        nir_win = rio.windows.Window.from_slices((row_stop, row_start),
-                                                 (col_start, col_stop))
+        nir_win = coordinates_to_window(self.nir_tif_handler,
+                                        x_min, y_min, x_max, y_max)
 
-        red_channel_img = self.rgb_tif_handler.read(
-            1, window=rgb_win)[..., np.newaxis]
+        red_channel_img = self.rgb_tif_handler.read(1, window=rgb_win)
 
-        nir_img = self.nir_tif_handler.read(
-            1, out_shape=(1, *red_channel_img.shape[:2]),
-            window=nir_win)[..., np.newaxis]
+        nir_img = self.nir_tif_handler.read(1, window=nir_win,
+                                            out_shape=red_channel_img.shape)
 
         ndvi = infrared.nir_to_ndvi(nir_img, red_channel_img)
         return ndvi
@@ -51,30 +47,31 @@ class ForestIterator:
     def __getitem__(self, item):
         single_shape = self.shapes_handler[item]
         shp = self.initiate_geoms(single_shape['geometry'])
-        x = np.array([a[0] for poly in shp for a in poly])
-        y = np.array([a[1] for poly in shp for a in poly])
-        row_start, col_start = self.rgb_tif_handler.index(x.min(), y.min())
-        row_stop, col_stop = self.rgb_tif_handler.index(x.max(), y.max())
+        x = np.asarray([point[0] for poly in shp for point in poly])
+        y = np.asarray([point[1] for poly in shp for point in poly])
 
-        win = rio.windows.Window.from_slices(
-            (row_stop, row_start), (col_start, col_stop))
-        img = np.stack([self.rgb_tif_handler.read(i + 1, window=win)
-                        for i in range(3 + self.alpha_channel)],
-                       axis=-1)
+        win = coordinates_to_window(self.rgb_tif_handler,
+                                    x.min(), y.min(), x.max(), y.max())
+
+        bands = [1, 2, 3] + ([4] if self.alpha_channel else [])
+
+        img = rio.plot.reshape_as_image(
+            self.rgb_tif_handler.read(bands, window=win))
+
         mask = self.build_mask(img, shp,
-                               col_offset=col_start,
-                               row_offset=row_stop)
+                               col_offset=win.col_off,
+                               row_offset=win.row_off)
 
         masked = cv2.bitwise_and(img, img, mask=mask)
 
         if self.channels_first:
-            masked = masked.transpose(2, 0, 1)
+            masked = rio.plot.reshape_as_raster(masked)
 
         result = {'rgb': masked,
                   'description': single_shape['properties']}
 
         if self.nir_path is not None:
-            ndvi = self.create_ndvi((x.min(), y.min()), (x.max(), y.max()))
+            ndvi = self.create_ndvi(x.min(), y.min(), x.max(), y.max())
             masked_ndvi = cv2.bitwise_and(ndvi, ndvi, mask=mask)
             result["ndvi"] = masked_ndvi
 
