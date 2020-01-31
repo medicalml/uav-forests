@@ -31,3 +31,7 @@ class TreeCounter:
         trees_points = [(14, 20), (444, 94)]  # (row, column)
         count = 17
         return {"trees": trees_points, "count": count}
+
+
+if __name__ == '__main__':
+    pass
