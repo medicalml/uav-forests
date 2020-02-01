@@ -3,14 +3,16 @@ import numpy as np
 
 class TreeCounter:
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args,
+                 return_locations: bool = False,
+                 **kwargs, ):
         '''
         Any required arguments for the algorithm 
         that stay unchanged for every run 
         on every forest part, and any required
         initialisation.
         '''
-        pass
+        self.return_locations = return_locations
 
     def count(self, rgb_image: np.ndarray, ndvi_image: np.ndarray,
               forest_mask: np.ndarray):
@@ -30,4 +32,7 @@ class TreeCounter:
         # ...
         trees_points = [(14, 20), (444, 94)]  # (row, column)
         count = 17
-        return {"trees": trees_points, "count": count}
+        if self.return_locations:
+            return {"trees": trees_points, "count": count}
+        else:
+            return count
