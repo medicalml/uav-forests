@@ -5,7 +5,7 @@
 
 data
 data/*
-
+temp/*
 *.pkl
 *.hd5
 *.shp

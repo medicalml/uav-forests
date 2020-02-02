@@ -4,7 +4,7 @@ import detectron2.config
 import detectron2.checkpoint
 import detectron2.engine
 from src.utils.image_processing import sliding_window_iterator
-
+import tqdm
 
 class SickTreesDetectron2Detector:
 
@@ -39,7 +39,7 @@ class SickTreesDetectron2Detector:
 
         image = rgb_image * forest_mask[..., np.newaxis]
         predictions = []
-        for row, col, window in sliding_window_iterator(image, self.patch_size):
+        for row, col, window in tqdm.tqdm(sliding_window_iterator(image, self.patch_size)):
             pred = self._detect_on_patch(window, row, col)
             predictions += pred
         return predictions
