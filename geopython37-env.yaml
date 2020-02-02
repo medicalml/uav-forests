@@ -33,3 +33,4 @@ dependencies:
   - urllib3
   - yaml
   - nodejs
+  - cython
