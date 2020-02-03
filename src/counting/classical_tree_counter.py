@@ -1,8 +1,20 @@
+"""
+Example usage of Tree Counter class
+"""
+
+from src.orthophotomap.forest_iterator import ForestIterator
+import os
+import fiona
+
 import numpy as np
 import cv2
 
 
-WINDOW_SIZE = 300
+def show(img):
+    cv2.imshow("img", img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+
 
 class TreeCounter:
 
@@ -28,7 +40,7 @@ class TreeCounter:
         # Filter by Area.
         params.filterByArea = True
         params.minArea = 1
-        params.maxArea = 50
+        params.maxArea = 10
 
         # Filter by Circularity
         params.filterByCircularity = True
@@ -55,9 +67,9 @@ class TreeCounter:
         return keypoints
 
     def _preprocess_forest_img(self, img):
-        l_channel = self.apply_brightness_contrast(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 64, 90)
+        l_channel = self._apply_brightness_contrast(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 64, 90)
         kernel = np.ones((3, 3), np.uint8)
-        ret, mask_r = cv2.threshold(l_channel, 140, 255, cv2.THRESH_BINARY)
+        ret, mask_r = cv2.threshold(l_channel, 170, 255, cv2.THRESH_BINARY)
         mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_OPEN, kernel)
         mask_r = np.uint8(mask_r)
 
@@ -87,37 +99,70 @@ class TreeCounter:
 
         return buf
 
-    def count(self, rgb_image: np.ndarray, ndvi_image: np.ndarray,
+    def count(self, rgb_image: np.ndarray,
               forest_mask: np.ndarray):
         assert 3 == len(rgb_image.shape), \
             "RGB image array should be 3-dimensional"
-        assert 2 == len(ndvi_image.shape), \
-            "NDVI image array should be 2-dimensional"
         assert 2 == len(forest_mask.shape), \
             "Forest mask array should be 2-dimensional"
-        assert rgb_image.shape[:2] == ndvi_image.shape, \
-            "NDVI image should have the same height and width as RGB"
         assert rgb_image.shape[:2] == forest_mask.shape, \
             "Forest mask should have the same height and width as RGB"
 
-
         count = 0
         trees_points = []
+        all_key_points = []
 
-        masked_rgb = cv2.bitwise_and(rgb_image, forest_mask)
+        masked_rgb = cv2.bitwise_and(rgb_image, rgb_image, mask=forest_mask)
 
-        for r in range(0, masked_rgb.shape[0], WINDOW_SIZE):
-            for c in range(0, masked_rgb.shape[1], WINDOW_SIZE):
-                small_img = masked_rgb[r:r + 30, c:c + 30, :]
+        masked_rgb = cv2.bitwise_not(masked_rgb)
 
-                small_img = self._preprocess_forest_img(small_img)
-                keypoints = self.detect_blobs(img=masked_rgb, params=self.params)
+        masked_rgb = self._preprocess_forest_img(masked_rgb)
 
-                trees_points += [k.pt for k in keypoints]
-                count += len(trees_points)
+        keypoints = self._detect_blobs(img=masked_rgb, params=self.params)
 
-        return {"trees": trees_points, "count": count}
+        all_key_points += keypoints
+        trees_points += [k.pt for k in keypoints]
+        count += len(trees_points)
+
+
+        return {"trees": trees_points, "count": count, "keypoints": all_key_points}
 
 
 if __name__ == '__main__':
-    pass
+    WINDOW_SIZE = 500
+    X = 1000
+    Y = 1000
+
+    name = 'Swiebodzin'
+    path = "/media/piotr/824F-8A2A/Swiebodzin/"
+
+    shape_path = os.path.join(path, 'obszar_' + name.lower() + '.shp')
+    shapes = fiona.open(shape_path)
+    rgb_path = os.path.join(path, 'RGB_' + name + '.tif')
+    nir_path = os.path.join(path, 'NIR_' + name + '.tif')
+    it = ForestIterator(rgb_path, shape_path, nir_path)
+
+    patch = it[53]
+    rgb = patch['rgb']
+
+    rgb = np.moveaxis(rgb, 0, -1)
+
+    forest_img = rgb[X: X + WINDOW_SIZE, Y: Y + WINDOW_SIZE, :]
+
+    tree_couter = TreeCounter()
+
+    # we assume all image is a forest, it is not a case always but for now it will be suficient
+    mask = np.ones_like(forest_img)[:, :, 2]
+
+    counting_dict = tree_couter.count(forest_img, mask)
+
+    keypoints = counting_dict["keypoints"]
+
+    print(counting_dict["count"])
+
+    imgKeyPoints = cv2.drawKeypoints(forest_img, keypoints, np.array([]), (0, 0, 255),
+                                     cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
+    cv2.imshow("Keypoints", imgKeyPoints)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
