@@ -6,7 +6,9 @@ WINDOW_SIZE = 300
 
 class TreeCounter:
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args,
+                 return_locations: bool = False,
+                 **kwargs, ):
         '''
         Any required arguments for the algorithm 
         that stay unchanged for every run 
@@ -14,6 +16,7 @@ class TreeCounter:
         initialisation.
         '''
         self.params = self._get_blob_params()
+        self.return_locations = return_locations
 
     def _get_blob_params(self):
         params = cv2.SimpleBlobDetector_Params()
