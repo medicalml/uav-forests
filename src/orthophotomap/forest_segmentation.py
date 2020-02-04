@@ -59,7 +59,7 @@ class ForestSegmentation:
 
         return buf
 
-    def mask(self, rgb_image: np.ndarray, ndvi_image: np.ndvi_image):
+    def mask(self, rgb_image: np.ndarray, ndvi_image: np.ndarray):
 
         assert 3 == len(rgb_image.shape), \
             "RGB image array should be 3-dimensional"

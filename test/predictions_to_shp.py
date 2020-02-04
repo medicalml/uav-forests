@@ -14,7 +14,7 @@ score_threshold = 0.5
 parser = argparse.ArgumentParser(prog="test_ml_detection.py",
                                      description=("Get simple prediction from pickle and have result in shp file Example command \n"
                                                   + " "*4
-                                                  + "python test_ml_detection.py \\\n"
+                                                  + "python predictions_to_shp.py \\\n"
                                                   + " "*9
                                                   + "--rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif"),
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -52,3 +52,6 @@ with fiona.open('temp/predictions.shp', 'w', 'ESRI Shapefile', schema) as c:
                 'geometry': mapping(poly),
                 'properties': {'id': i},
             })
+'''
+python predictions_to_shp.py --rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif
+'''
