@@ -9,14 +9,14 @@ import tqdm
 class SickTreesDetectron2Detector:
 
     def __init__(self, config_yml_path: str, weights_snapshot_path: str,
-                 patch_size: int = 256, bgr_input: bool = True):
+                 patch_size: int = 256, bgr_input: bool = True, device: str = "cuda"):
         """
         Class for sick trees detection using basic detectron2 based model.
         """
         self.cfg = dt2.config.get_cfg()
         self.cfg.merge_from_file(config_yml_path)
         self.cfg.MODEL.WEIGHTS = weights_snapshot_path
-
+        self.cfg.MODEL.DEVICE = device
         self.predictor = dt2.engine.DefaultPredictor(self.cfg)
         self.patch_size = patch_size
         self.bgr_input = bgr_input

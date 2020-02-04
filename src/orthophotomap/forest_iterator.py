@@ -70,8 +70,8 @@ class ForestIterator:
 
         result = {'rgb': masked,
                   'description': single_shape['properties'],
-                  'left_upper_corner_coordinates':[x.min(),y.min()],
-                  'right_lower_corner_coordinates':[x.max(),y.max()]}
+                  'left_upper_corner_coordinates':[x.min(),y.max()],
+                  'right_lower_corner_coordinates':[x.max(),y.min()]}
                  
         if self.nir_path is not None:
             ndvi = self.create_ndvi(x.min(), y.min(), x.max(), y.max())

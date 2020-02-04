@@ -139,7 +139,7 @@ if __name__ == '__main__':
     Y = 1000
 
     name = 'Swiebodzin'
-    path = "/home/h/ML dane dla kola/Swiebodzin/"
+    path = "/home/m/ML dane dla kola/Swiebodzin/"
 
     shape_path = os.path.join(path, 'obszar_' + name.lower() + '.shp')
     shapes = fiona.open(shape_path)
@@ -213,5 +213,5 @@ if __name__ == '__main__':
     #cv2.destroyAllWindows()
 
 '''
-python src/counting/classical_tree_counter.py      
+python3 src/counting/classical_tree_counter.py      
 '''

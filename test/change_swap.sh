@@ -2,7 +2,7 @@
 echo 'sudo swapoff -a'
 sudo swapoff -a
 echo "Resize swap"
-sudo dd if=/dev/zero of=/swapfile bs=1G count=64
+sudo dd if=/dev/zero of=/swapfile bs=1G count=8
 echo "Make the file usable as swap"
 sudo mkswap /swapfile
 echo "Activate the swap file"

@@ -8,6 +8,8 @@ import tqdm
 import fiona
 from shapely.geometry import Point, mapping, Polygon
 import logging as l
+import torch
+
 l.basicConfig(level=l.INFO, format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) #import parent directory of current module directory
@@ -32,7 +34,12 @@ parser.add_argument("--rgb_tif_path", required=True, help="path to tiff with rgb
 parser.add_argument("--forest_shp_path", required=True, help="path to tiff with shp showing where trees are ")
 
 args = parser.parse_args()
-detector = SickTreesDetectron2Detector(args.config_yml_path, args.weights_snapshot_path)
+l.info("II ")
+if torch.cuda.device_count():
+    device = 'cuda'
+else:
+    device = 'cpu'
+detector = SickTreesDetectron2Detector(args.config_yml_path, args.weights_snapshot_path, device=device)
 l.info("rozpoczęto otwieranie pliku tiff, upewnij się że masz wystarczająco ramu albo duży swap")
 geotiff = rio.open(args.rgb_tif_path)
 l.info("zakończono otwieranie pliku tiff")
@@ -86,7 +93,5 @@ if not os.path.exists("temp"):
 
 pickle.dump(detections, open("temp/save.p", "wb" ) )
 subprocess.call(["python", "test/predictions_to_shp.py", "--rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif"])
-
-python test/test_segmentation_and_detection.py --rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif --config_yml_path=/home/h/Pobrane/config.yml --weights_snapshot_path=/home/h/Pobrane/model_final.pth
-python test/test_segmentation_and_detection.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --config_yml_path=/home/h/Pobrane/config.yml --weights_snapshot_path=/home/h/Pobrane/model_final.pth --forest_shp_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
+python test/test_segmentation_and_detection.py --rgb_tif_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --config_yml_path=/home/m/Pobrane/config.yml --weights_snapshot_path=/home/m/Pobrane/model_final.pth --forest_shp_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
 '''
