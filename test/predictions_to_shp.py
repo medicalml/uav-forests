@@ -53,5 +53,5 @@ with fiona.open('temp/predictions.shp', 'w', 'ESRI Shapefile', schema) as c:
                 'properties': {'id': i},
             })
 '''
-python predictions_to_shp.py --rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif
+python test/predictions_to_shp.py --rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif
 '''

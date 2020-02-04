@@ -9,7 +9,12 @@ temp/*
 *.pkl
 *.hd5
 *.shp
-
+tools.*
+trees.*
+old_temp/
+temp_avg/
+temp/
+keypoints/
 ### Data ###
 *.csv
 *.dat

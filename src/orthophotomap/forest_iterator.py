@@ -46,6 +46,7 @@ class ForestIterator:
 
     def __getitem__(self, item):
         single_shape = self.shapes_handler[item]
+        #print(single_shape['geometry'])
         shp = self.initiate_geoms(single_shape['geometry'])
         x = np.asarray([point[0] for poly in shp for point in poly])
         y = np.asarray([point[1] for poly in shp for point in poly])
@@ -68,8 +69,10 @@ class ForestIterator:
             masked = rio.plot.reshape_as_raster(masked)
 
         result = {'rgb': masked,
-                  'description': single_shape['properties']}
-
+                  'description': single_shape['properties'],
+                  'left_upper_corner_coordinates':[x.min(),y.min()],
+                  'right_lower_corner_coordinates':[x.max(),y.max()]}
+                 
         if self.nir_path is not None:
             ndvi = self.create_ndvi(x.min(), y.min(), x.max(), y.max())
             masked_ndvi = cv2.bitwise_and(ndvi, ndvi, mask=mask)
