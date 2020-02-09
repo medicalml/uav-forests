@@ -16,6 +16,8 @@ from skimage.external.tifffile import imsave
 import warnings
 warnings.filterwarnings('error')
 import sys
+from PIL import Image
+
 sys.path.insert(0, '/home/h/uav-forests')
 from src.utils.infrared import nir_to_ndvi
 def geometry_to_pixel_geometry(geometry, transform):
@@ -110,23 +112,40 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             #print(tile_ir.shape)
             alpha = tile_rgb[:,:,3].astype(np.float32)/255
             #second_lock.release()
-            tile_rgba = cv2.cvtColor(tile_rgb, cv2.COLOR_RGBA2BGRA)
+            tile_rgb = cv2.cvtColor(tile_rgb, cv2.COLOR_RGBA2BGRA)
+            
             #print("raw", np.unique(tile_ir))
             tile_ir = cv2.resize(tile_ir, (tile_size, tile_size), interpolation=cv2.INTER_NEAREST)
-            tile_ndvi = nir_to_ndvi(tile_ir, tile_rgba[:,:,0])
+            tile_ndvi = nir_to_ndvi(tile_ir, tile_rgb[:,:,0])
             if tile_ndvi is None:
                 continue
             tile_ndvi = tile_ndvi * 255.0
             tile_ndvi = np.clip(tile_ndvi, 0, 255)
-            tile_ndvir = tile_ndvi.astype(np.uint8)
+            #tile_ndvi = tile_ndvi.astype(np.uint8)
             #print("scaled", np.unique(tile_ir))
             
-        
+            tile_ndvi = np.expand_dims(tile_ndvi, -1)
+            
+            #print(tile_rgb.shape, tile_ndvi.shape)
+            tile_rgb = tile_rgb.astype(np.uint8)
+            tile_ndvi = tile_ndvi*255.0
+            tile_ndvi = tile_ndvi.astype(np.uint8)
+            tile_merged = np.append(tile_rgb, tile_ndvi, axis=-1)
+            
+            #print(tile_merged.shape)
+            #print(tile_rgb.dtype)
+            
+            imr = Image.fromarray(tile_merged[:,:,0]) 
+            img = Image.fromarray(tile_merged[:,:,1])
+            imb = Image.fromarray(tile_merged[:,:,2]) 
+            imn = Image.fromarray(tile_merged[:,:,4]) 
             
             #print(tile_rgb_ir.shape)
             if len(shapes_rgb) > 0 or alpha.mean() > max_empty_pixels_threshold:
-                cv2.imwrite(f"{target_dir}/patch_{index}.png", tile_rgba)
-                cv2.imwrite(f"{target_dir}/patch_ir_{index}.png", tile_ndvi)
+                #cv2.imwrite(f"{target_dir}/patch_{index}.png", tile_rgb)
+                #cv2.imwrite(f"{target_dir}/patch_ir_{index}.png", tile_ndvi)
+                #im.save(f"{target_dir}/patch_ir_{index}.tiff", "TIFF")
+                imr.save(f"{target_dir}/patch_{index}.tif", format="tiff", append_images=[img, imb, imn], save_all=True)
                 annotations += [{"patch_number": index, **s} for s in shapes_rgb]
 
             del tile_ir
