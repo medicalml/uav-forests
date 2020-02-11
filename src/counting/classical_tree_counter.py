@@ -35,24 +35,24 @@ class TreeCounter:
 
         # Change thresholds
         params.minThreshold = 0
-        params.maxThreshold = 100
+        params.maxThreshold = 2000
 
         # Filter by Area.
         params.filterByArea = True
         params.minArea = 1
-        params.maxArea = 10
+        params.maxArea = 40
 
         # Filter by Circularity
-        params.filterByCircularity = True
-        params.minCircularity = 0.0
+        # params.filterByCircularity = True
+        # params.minCircularity = 0.0
 
         # Filter by Convexity
-        params.filterByConvexity = True
-        params.minConvexity = 0.0
+        # params.filterByConvexity = True
+        # params.minConvexity = 0.0
 
         # Filter by Inertia
-        params.filterByInertia = True
-        params.minInertiaRatio = 0.01
+        # params.filterByInertia = True
+        # params.minInertiaRatio = 0.01
 
         return params
 
@@ -68,8 +68,8 @@ class TreeCounter:
 
     def _preprocess_forest_img(self, img):
         l_channel = self._apply_brightness_contrast(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 64, 90)
-        kernel = np.ones((3, 3), np.uint8)
-        ret, mask_r = cv2.threshold(l_channel, 170, 255, cv2.THRESH_BINARY)
+        kernel = np.ones((1, 1), np.uint8)
+        ret, mask_r = cv2.threshold(l_channel, 140, 255, cv2.THRESH_BINARY)
         mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_OPEN, kernel)
         mask_r = np.uint8(mask_r)
 
@@ -114,9 +114,13 @@ class TreeCounter:
 
         masked_rgb = cv2.bitwise_and(rgb_image, rgb_image, mask=forest_mask)
 
-        masked_rgb = cv2.bitwise_not(masked_rgb)
 
         masked_rgb = self._preprocess_forest_img(masked_rgb)
+
+        # show(masked_rgb)
+
+        masked_rgb = cv2.bitwise_not(masked_rgb)
+
 
         keypoints = self._detect_blobs(img=masked_rgb, params=self.params)
 
@@ -125,7 +129,7 @@ class TreeCounter:
         count += len(trees_points)
 
 
-        return {"trees": trees_points, "count": count, "keypoints": all_key_points}
+        return {"trees": trees_points, "count": count, "keypoints": all_key_points, "mask": masked_rgb}
 
 
 if __name__ == '__main__':

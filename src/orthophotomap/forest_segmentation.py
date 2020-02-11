@@ -2,6 +2,7 @@ import numpy as np
 from skimage.filters.rank import entropy
 from skimage.morphology import disk
 import cv2
+from src.counting.classical_tree_counter import show
 
 
 class ForestSegmentation:
@@ -59,23 +60,68 @@ class ForestSegmentation:
 
         return buf
 
-    def mask(self, rgb_image: np.ndarray, ndvi_image: np.ndvi_image):
+    # def mask(self, rgb_image: np.ndarray):
+    #
+    #     assert 3 == len(rgb_image.shape), \
+    #         "RGB image array should be 3-dimensional"
+    #     # assert 2 == len(ndvi_image.shape), \
+    #     #     "NDVI image array should be 2-dimensional"
+    #     # assert rgb_image.shape[:2] == ndvi_image.shape, \
+    #     #     "NDVI image should have the same height and width as RGB"
+    #
+    #     l_channel = self._apply_brightness_contrast(cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY),
+    #                                                 self.brightness, self.contrast)
+    #     entr = entropy(l_channel, disk(self.entropy_window_size))
+    #     entr = (entr - entr.min()) / (entr.max() - entr.min())
+    #
+    #     kernel = np.ones((self.opening_window_size, self.opening_window_size), np.uint8)
+    #     ret, mask_r = cv2.threshold(entr, self.brightness_threshold, 1, cv2.THRESH_BINARY)
+    #     mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_OPEN, kernel)
+    #     mask_r = np.uint8(mask_r)
+    #
+    #     return mask_r
+
+    def mask(self, rgb_image: np.ndarray):
 
         assert 3 == len(rgb_image.shape), \
             "RGB image array should be 3-dimensional"
-        assert 2 == len(ndvi_image.shape), \
-            "NDVI image array should be 2-dimensional"
-        assert rgb_image.shape[:2] == ndvi_image.shape, \
-            "NDVI image should have the same height and width as RGB"
+        img_rgb = rgb_image
+        img_yuv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2YUV)
+        img_yuv[:, :, 0] = cv2.equalizeHist(img_yuv[:, :, 0])
+        img = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2RGB)
+        bilateral = cv2.bilateralFilter(img, 21, 160, 168)
+        rgb_planes = cv2.split(bilateral)
 
-        l_channel = self._apply_brightness_contrast(cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY),
-                                                    self.brightness, self.contrast)
-        entr = entropy(l_channel, disk(self.entropy_window_size))
+        result_planes = []
+        result_norm_planes = []
+        for plane in rgb_planes:
+            dilated_img = cv2.dilate(plane, np.ones((7, 7), np.uint8))
+            bg_img = cv2.medianBlur(dilated_img, 21)
+            diff_img = 255 - cv2.absdiff(plane, bg_img)
+            norm_img = cv2.normalize(diff_img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+            result_planes.append(diff_img)
+            result_norm_planes.append(norm_img)
+
+        result_norm = cv2.merge(result_norm_planes)
+        r_gray = cv2.cvtColor(result_norm, cv2.COLOR_RGB2GRAY)
+        r_gray = self._apply_brightness_contrast(r_gray, 64, 0)
+        entr = entropy(r_gray, disk(30))
         entr = (entr - entr.min()) / (entr.max() - entr.min())
-
-        kernel = np.ones((self.opening_window_size, self.opening_window_size), np.uint8)
-        ret, mask_r = cv2.threshold(entr, self.brightness_threshold, 1, cv2.THRESH_BINARY)
+        entr = cv2.GaussianBlur(entr, (5, 5), cv2.BORDER_DEFAULT)
+        kernel = np.ones((15, 15), np.uint8)
+        ret, mask_r = cv2.threshold(entr, 0.65, 1, cv2.THRESH_BINARY)
         mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_OPEN, kernel)
         mask_r = np.uint8(mask_r)
 
-        return mask_r
+        img_new = cv2.bitwise_and(img_rgb, img_rgb, mask=mask_r)
+        l_channel = cv2.cvtColor(img_new, cv2.COLOR_RGB2GRAY)
+        l_channel = self._apply_brightness_contrast(l_channel, 64, 30)
+        entr_new = entropy(l_channel, disk(45))
+        entr_new = (entr_new - entr_new.min()) / (entr_new.max() - entr_new.min())
+
+        kernel = np.ones((15, 15), np.uint8)
+        ret, mask_r_new = cv2.threshold(entr_new, 0.65, 1, cv2.THRESH_BINARY)
+        mask_r_new = cv2.morphologyEx(mask_r_new, cv2.MORPH_OPEN, kernel)
+        mask_r_new = np.uint8(mask_r_new)
+
+        return mask_r_new
