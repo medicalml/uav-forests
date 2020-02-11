@@ -1,18 +1,18 @@
-"""
-Example usage of Tree Counter class
-"""
 import sys
+import shutil
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) ) #import parent of parent directory of current module directory
-from src.orthophotomap.forest_iterator import ForestIterator
+import argparse
 
 import fiona
-
 import numpy as np
 import cv2
 import tqdm
 from shapely.geometry import Point, mapping, Polygon
 import rasterio as rio 
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) ) #import parent of parent directory of current module directory
+from src.orthophotomap.forest_iterator import ForestIterator
+
 def show(img):
     cv2.imshow("img", img)
     cv2.waitKey()
@@ -134,32 +134,37 @@ class TreeCounter:
 
 
 if __name__ == '__main__':
-    WINDOW_SIZE = 500
-    X = 1000
-    Y = 1000
+    parser = argparse.ArgumentParser(prog="classical_tree_counter.py.py",
+                                     description=("This script create predictions about trees location and save results as png, shp with detected trees and also save rectangles which contain areas where trees are \n"),
+                                     formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("--rgb_tif_path", required=True, help="path to rgb tif file")
+    parser.add_argument("--nir_tif_path", required=True, help="path to tif with nir channel")
+    parser.add_argument("--shp_path", required=True, help="path to shp file which indicate where trees are - it is created probably by some organisation responsible for knowing where trees were planted")
+    
+    args = parser.parse_args()
+    
+    for output_path in ['outputs/keypoints_png/', 'outputs/shapes/']:
+        if os.path.exists(output_path):
+            shutil.rmtree(output_path)
+        os.makedirs(output_path)
 
-    name = 'Swiebodzin'
-    path = "/home/m/ML dane dla kola/Swiebodzin/"
-
-    shape_path = os.path.join(path, 'obszar_' + name.lower() + '.shp')
-    shapes = fiona.open(shape_path)
-    rgb_path = os.path.join(path, 'RGB_' + name + '.tif')
+    shapes = fiona.open(args.shp_path)
     schema = {
-    'geometry': 'Point',
-    'properties': {'id': 'int'},
+        'geometry': 'Point',
+        'properties': {'id': 'int'},
     }
     schema_polygon = {
-    'geometry': 'Polygon',
-    'properties': {'id': 'int'},
+        'geometry': 'Polygon',
+        'properties': {'id': 'int'},
     }
 
     # Write a new Shapefile
-    c = fiona.open('trees.shp', 'w', 'ESRI Shapefile', schema)
-    tools = fiona.open('tools.shp', 'w', 'ESRI Shapefile', schema_polygon)
+    c = fiona.open('outputs/shapes/trees.shp', 'w', 'ESRI Shapefile', schema)
+    tools = fiona.open('outputs/shapes/rectangles.shp', 'w', 'ESRI Shapefile', schema_polygon)
     
-    geotiff = rio.open(rgb_path)
-    nir_path = os.path.join(path, 'NIR_' + name + '.tif')
-    it = ForestIterator(rgb_path, shape_path, nir_path)
+    geotiff = rio.open(args.rgb_tif_path)
+    
+    it = ForestIterator(args.rgb_tif_path, args.shp_path, args.nir_tif_path)
     for i, patch in enumerate(tqdm.tqdm(it)):        
         rgb = patch['rgb']
         x_min, y_min = patch['left_upper_corner_coordinates']
@@ -167,16 +172,14 @@ if __name__ == '__main__':
         x_max, y_max = patch['right_lower_corner_coordinates']
         rgb = np.moveaxis(rgb, 0, -1)
 
-        forest_img = rgb#rgb[: WINDOW_SIZE, :WINDOW_SIZE, :]
-
         tree_couter = TreeCounter()
 
         # we assume all image is a forest, it is not a case always but for now it will be suficient
-        mask = np.ones_like(forest_img)[:, :, 2]
-        if forest_img is None or mask is None:
+        mask = np.ones_like(rgb)[:, :, 2]
+        if rgb is None or mask is None:
             print("problem")
             continue
-        counting_dict = tree_couter.count(forest_img, mask)
+        counting_dict = tree_couter.count(rgb, mask)
         
 
         keypoints = counting_dict["keypoints"]
@@ -204,14 +207,12 @@ if __name__ == '__main__':
                     'properties': {'id': i*1000+nr},
                 })
                 
-            imgKeyPoints = cv2.drawKeypoints(forest_img, keypoints, np.array([]), (0, 0, 255),
+            imgKeyPoints = cv2.drawKeypoints(rgb, keypoints, np.array([]), (0, 0, 255),
                                             cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
-            cv2.imwrite("keypoints/"+str(i*1000)+".png", imgKeyPoints)
+            cv2.imwrite("outputs/keypoints_png/"+str(i*1000)+".png", imgKeyPoints)
     c.close()
-    #cv2.waitKey(0)
-    #cv2.destroyAllWindows()
-
+    
 '''
-python3 src/counting/classical_tree_counter.py      
+python3 src/counting/classical_tree_counter.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --nir_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/NIR_Swiebodzin.tif --shp_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp      
 '''

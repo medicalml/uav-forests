@@ -36,7 +36,7 @@ def _convert_single_bbox(bbox):
 
 def _convert_single_patch(patch_df, images_dir, image_shape=(256, 256)):
     patch_number = patch_df["patch_number"].iloc[0]
-    file_path = os.path.join(images_dir, f"patch_{patch_number}.png")
+    file_path = os.path.join(images_dir, f"patch_{patch_number}.tif")
     image_shape = image_shape or cv2.imread(file_path).shape[:2]
     return {"file_name": file_path,
             "image_id": int(patch_number),

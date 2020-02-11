@@ -16,7 +16,7 @@ trees.*
 old_temp/
 temp_avg/
 temp/
-keypoints/
+outputs/
 ### Data ###
 *.csv
 *.dat
