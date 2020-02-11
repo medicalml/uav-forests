@@ -4,6 +4,8 @@ import rasterio.mask
 import rasterio.plot
 import numpy as np
 import cv2
+from shapely.geometry import Point
+
 from src.utils import infrared
 from src.utils.coordinates_converters import coordinates_to_window
 
@@ -68,7 +70,10 @@ class ForestIterator:
             masked = rio.plot.reshape_as_raster(masked)
 
         result = {'rgb': masked,
-                  'description': single_shape['properties']}
+                  'description': single_shape['properties'],
+                  'x_min' : x.min(),
+                  'y_min' : y.min()
+                  }
 
         if self.nir_path is not None:
             ndvi = self.create_ndvi(x.min(), y.min(), x.max(), y.max())
@@ -86,6 +91,8 @@ class ForestIterator:
                                for l in joint]], dtype=np.int32)
             cv2.fillPoly(mask, pts=[joint], color=255)
         return mask
+
+
 
     def __len__(self):
         return self.length

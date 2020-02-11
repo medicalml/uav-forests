@@ -5,6 +5,8 @@ Example usage of Tree Counter class
 from src.orthophotomap.forest_iterator import ForestIterator
 import os
 import fiona
+import rasterio as rio
+from shapely.geometry import Point, mapping
 
 import numpy as np
 import cv2
@@ -151,7 +153,7 @@ if __name__ == '__main__':
 
     rgb = np.moveaxis(rgb, 0, -1)
 
-    forest_img = rgb[X: X + WINDOW_SIZE, Y: Y + WINDOW_SIZE, :]
+    forest_img = rgb
 
     tree_couter = TreeCounter()
 
@@ -160,13 +162,21 @@ if __name__ == '__main__':
 
     counting_dict = tree_couter.count(forest_img, mask)
 
-    keypoints = counting_dict["keypoints"]
+    schema = {
+    'geometry': 'Point',
+    }
 
-    print(counting_dict["count"])
 
-    imgKeyPoints = cv2.drawKeypoints(forest_img, keypoints, np.array([]), (0, 0, 255),
-                                     cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    # Write a new Shapefile
+    output_shapefile = fiona.open('trees.shp', 'w', 'ESRI Shapefile', schema)
 
-    cv2.imshow("Keypoints", imgKeyPoints)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    trees = counting_dict["trees"]
+
+    for x, y in trees:
+        x = x+path["x_min"]
+        y = y + path["y_min"]
+
+        point = Point(rio.transform.xy(it.rgb_tif_handler.transformm, y, x))
+        output_shapefile.write(mapping(point))
+
+
