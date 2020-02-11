@@ -159,8 +159,8 @@ if __name__ == '__main__':
     }
 
     # Write a new Shapefile
-    c = fiona.open('outputs/shapes/trees.shp', 'w', 'ESRI Shapefile', schema)
-    tools = fiona.open('outputs/shapes/rectangles.shp', 'w', 'ESRI Shapefile', schema_polygon)
+    trees_shapefile = fiona.open('outputs/shapes/trees.shp', 'w', 'ESRI Shapefile', schema)
+    rectangles_shapefile = fiona.open('outputs/shapes/rectangles.shp', 'w', 'ESRI Shapefile', schema_polygon)
     
     geotiff = rio.open(args.rgb_tif_path)
     
@@ -185,27 +185,28 @@ if __name__ == '__main__':
         keypoints = counting_dict["keypoints"]
 
         
-    
+        coors_to_write = []
+        coors_to_write.append([x_min, y_min])
+        coors_to_write.append([x_max, y_min ])
+        coors_to_write.append([x_max, y_max])
+        coors_to_write.append([x_min, y_max ])
+        rectangle_poly = Polygon([coors_to_write[0], coors_to_write[1], coors_to_write[2], coors_to_write[3], coors_to_write[0]])
+        rectangles_shapefile.write({
+                    'geometry': mapping(rectangle_poly),
+                    'properties': {'id': i*1000},
+                })
+
         if keypoints is not None:
             for nr, keypoint in enumerate(keypoints):
                 x,y = keypoint.pt
                 y_min_pixels, x_min_pixels = rio.transform.rowcol(geotiff.transform, x_min, y_min)
                 point = Point(rio.transform.xy(geotiff.transform, y_min_pixels+y, x_min_pixels+x))
-                coors_to_write = []
-                coors_to_write.append([x_min, y_min])
-                coors_to_write.append([x_max, y_min ])
-                coors_to_write.append([x_max, y_max])
-                coors_to_write.append([x_min, y_max ])
                 
-                poly_tool = Polygon([coors_to_write[0], coors_to_write[1], coors_to_write[2], coors_to_write[3], coors_to_write[0]])
-                c.write({
+                trees_shapefile.write({
                     'geometry': mapping(point),
                     'properties': {'id': i*1000+nr},
                 })
-                tools.write({
-                    'geometry': mapping(poly_tool),
-                    'properties': {'id': i*1000+nr},
-                })
+                
                 
             imgKeyPoints = cv2.drawKeypoints(rgb, keypoints, np.array([]), (0, 0, 255),
                                             cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
