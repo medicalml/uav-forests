@@ -17,7 +17,7 @@ import warnings
 warnings.filterwarnings('error')
 import sys
 from PIL import Image
-
+#WORKS ONLY IN SINGLE PROCESS MODE
 sys.path.insert(0, '/home/h/uav-forests')
 from src.utils.infrared import nir_to_ndvi
 def geometry_to_pixel_geometry(geometry, transform):
@@ -108,6 +108,8 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             tile_ir = extract_ir_tile(ir, row, col, tile_size, tiff_handler.transform)
             if tile_ir is None or tile_ir.size <= 0:
                 continue
+            if tile_ir.mean() < -100:
+                continue
             #second_lock.acquire()
             #print(tile_ir.shape)
             alpha = tile_rgb[:,:,3].astype(np.float32)/255
@@ -115,6 +117,7 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             tile_rgb = cv2.cvtColor(tile_rgb, cv2.COLOR_RGBA2BGRA)
             
             #print("raw", np.unique(tile_ir))
+            
             tile_ir = cv2.resize(tile_ir, (tile_size, tile_size), interpolation=cv2.INTER_NEAREST)
             tile_ndvi = nir_to_ndvi(tile_ir, tile_rgb[:,:,0])
             if tile_ndvi is None:
