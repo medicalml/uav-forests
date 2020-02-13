@@ -2,14 +2,17 @@
 Example usage of Tree Counter class
 """
 
-from src.orthophotomap.forest_iterator import ForestIterator
 import os
+
+import cv2
 import fiona
+import numpy as np
 import rasterio as rio
+from tqdm import tqdm
 from shapely.geometry import Point, mapping
 
-import numpy as np
-import cv2
+from src.orthophotomap.forest_iterator import ForestIterator
+from src.orthophotomap.forest_segmentation import ForestSegmentation
 
 
 def show(img):
@@ -24,8 +27,8 @@ class TreeCounter:
                  return_locations: bool = False,
                  **kwargs, ):
         '''
-        Any required arguments for the algorithm 
-        that stay unchanged for every run 
+        Any required arguments for the algorithm
+        that stay unchanged for every run
         on every forest part, and any required
         initialisation.
         '''
@@ -116,13 +119,11 @@ class TreeCounter:
 
         masked_rgb = cv2.bitwise_and(rgb_image, rgb_image, mask=forest_mask)
 
-
         masked_rgb = self._preprocess_forest_img(masked_rgb)
 
         # show(masked_rgb)
 
         masked_rgb = cv2.bitwise_not(masked_rgb)
-
 
         keypoints = self._detect_blobs(img=masked_rgb, params=self.params)
 
@@ -130,53 +131,48 @@ class TreeCounter:
         trees_points += [k.pt for k in keypoints]
         count += len(trees_points)
 
-
         return {"trees": trees_points, "count": count, "keypoints": all_key_points, "mask": masked_rgb}
 
 
 if __name__ == '__main__':
-    WINDOW_SIZE = 500
-    X = 1000
-    Y = 1000
-
     name = 'Swiebodzin'
-    path = "/media/piotr/824F-8A2A/Swiebodzin/"
+    path = "D:/_drzewaBZBUAS/Swiebodzin"
 
     shape_path = os.path.join(path, 'obszar_' + name.lower() + '.shp')
     shapes = fiona.open(shape_path)
     rgb_path = os.path.join(path, 'RGB_' + name + '.tif')
     nir_path = os.path.join(path, 'NIR_' + name + '.tif')
-    it = ForestIterator(rgb_path, shape_path, nir_path)
-
-    patch = it[53]
-    rgb = patch['rgb']
-
-    rgb = np.moveaxis(rgb, 0, -1)
-
-    forest_img = rgb
-
-    tree_couter = TreeCounter()
-
-    # we assume all image is a forest, it is not a case always but for now it will be suficient
-    mask = np.ones_like(forest_img)[:, :, 2]
-
-    counting_dict = tree_couter.count(forest_img, mask)
-
     schema = {
-    'geometry': 'Point',
+        'geometry': 'Point',
+        'properties': {"id": "int"}
     }
-
-
     # Write a new Shapefile
-    output_shapefile = fiona.open('trees.shp', 'w', 'ESRI Shapefile', schema)
+    output_shapefile = fiona.open(os.path.join(path, 'trees.shp'), 'w', 'ESRI Shapefile', schema)
+    tree_couter = TreeCounter()
+    it = ForestIterator(rgb_path, shape_path, nir_path)
+    masking_tool = ForestSegmentation()
+    edit_initial_shape = []
 
-    trees = counting_dict["trees"]
+    for patch in tqdm(it):
+    # patch = it[53]
+        rgb = patch['rgb']
+        rgb = np.moveaxis(rgb, 0, -1)
+        forest_img = rgb
 
-    for x, y in trees:
-        x = x+path["x_min"]
-        y = y + path["y_min"]
+        # we assume all image is a forest, it is not a case always but for now it will be suficient
+        mask = masking_tool.mask(forest_img)
+        counting_dict = tree_couter.count(forest_img, mask)
+        trees = counting_dict["trees"]
+        number_of_trees = len(trees)
+        edit_initial_shape.append((patch["description"]["id_ob"], number_of_trees))
+        for idx, (x, y) in enumerate(trees):
+            y_max, x_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
+            y += y_max
+            x += x_min
+            point = Point(rio.transform.xy(it.rgb_tif_handler.transform, y, x))
+            output_shapefile.write({
+                'geometry': mapping(point),
+                'properties': {'id': idx},
+            })
 
-        point = Point(rio.transform.xy(it.rgb_tif_handler.transformm, y, x))
-        output_shapefile.write(mapping(point))
-
-
+    it.update_shapefile(edit_initial_shape, ["drzewa"])

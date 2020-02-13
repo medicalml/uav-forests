@@ -5,6 +5,8 @@ import rasterio.plot
 import numpy as np
 import cv2
 from shapely.geometry import Point
+import geopandas as gpd
+import os
 
 from src.utils import infrared
 from src.utils.coordinates_converters import coordinates_to_window
@@ -14,6 +16,13 @@ class ForestIterator:
 
     def __init__(self, rgb_tif_path, forest_shp_path, nir_tif_path=None,
                  alpha_channel=False, channels_first=True):
+        '''
+        :param rgb_tif_path: Path to the RGB.tif
+        :param forest_shp_path: Path to the shapefile with forests .shp
+        :param nir_tif_path:  Path to the NIR.tif
+        :param alpha_channel: If alpha channel is in the rgb
+        :param channels_first:
+        '''
         self.rgb_path = rgb_tif_path
         self.nir_path = nir_tif_path
         self.shape_path = forest_shp_path
@@ -25,13 +34,26 @@ class ForestIterator:
         self.shapes_handler = fiona.open(forest_shp_path)
         self.length = len(self.shapes_handler)
 
-    def initiate_geoms(self, shp_geometry: dict):  # fiona shape geometry dict
+    def initiate_geoms(self, shp_geometry: dict):
+        '''
+        Unpack the basic geometry sequence
+        :param shp_geometry: Fiona shape geometry dictionary
+        :return:
+        '''
         if shp_geometry['type'] == 'Polygon':
             return shp_geometry['coordinates']
         else:
             return [poly[0] for poly in shp_geometry['coordinates']]
 
     def create_ndvi(self, x_min, y_min, x_max, y_max):
+        '''
+        Create the ndvi sequence for window of coorinates
+        :param x_min:
+        :param y_min:
+        :param x_max:
+        :param y_max:
+        :return: NDVI numpy array of shape matching the rgb image
+        '''
         rgb_win = coordinates_to_window(self.rgb_tif_handler,
                                         x_min, y_min, x_max, y_max)
 
@@ -72,7 +94,7 @@ class ForestIterator:
         result = {'rgb': masked,
                   'description': single_shape['properties'],
                   'x_min' : x.min(),
-                  'y_min' : y.min()
+                  'y_max' : y.max()
                   }
 
         if self.nir_path is not None:
@@ -83,6 +105,14 @@ class ForestIterator:
         return result
 
     def build_mask(self, img, shapes, col_offset, row_offset):
+        '''
+        Build mask from the polygons from geometry
+        :param img: numpy image to mask
+        :param shapes: shapes and geometries to mask by
+        :param col_offset:
+        :param row_offset:
+        :return: mask for shape of img
+        '''
         mask = np.zeros(img.shape[:2], dtype=np.uint8)
 
         for poly in shapes:
@@ -92,7 +122,26 @@ class ForestIterator:
             cv2.fillPoly(mask, pts=[joint], color=255)
         return mask
 
-
-
     def __len__(self):
         return self.length
+
+    def update_shapefile(self, update_list, new_cols):
+        '''
+        Update shapefile with new information
+        :param update_list: List of structure [(id_ob, col1, col2,...)]
+        :param new_cols: List of added columns names
+        :return: Nothing
+        '''
+        assert len(update_list[0]) == len(new_cols) + 1, \
+            "New column names lenght does not match the update list shape"
+
+        gdf = gpd.read_file(self.shape_path)
+        for col in new_cols:
+            gdf[col] = 0
+        gdf = gdf.set_index("id_ob")
+        new_df = gpd.GeoDataFrame(update_list, columns=["id_ob"] + new_cols)
+        new_df = new_df.set_index("id_ob")
+        gdf.update(new_df)
+        path, filename = os.path.split(self.shape_path)
+        filename, extenstion = os.path.splitext(filename)
+        gdf.to_file(os.path.join(path, filename+"_updated"+extenstion))
