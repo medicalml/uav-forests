@@ -77,15 +77,17 @@ def extract_ir_tile(ir_handler, row_offset, col_offset, rgb_tile_size, transform
     ir_row_min, ir_col_min = rio.transform.rowcol(ir_handler.transform, x0, y0)
     ir_row_max, ir_col_max = rio.transform.rowcol(ir_handler.transform, x1, y1)
     ir_row_min, ir_col_min = [0 if dim<0 else dim for dim in [ir_row_min, ir_col_min]]
-
+    #print(ir_col_max - ir_col_min, ir_row_max-ir_row_min)
     #print(ir_row_min, ir_col_min, ir_row_max, ir_col_max)
-    ir_tile_size = min(ir_col_max - ir_col_min, ir_row_max-ir_row_min)
+    x_ir_tile_size = ir_col_max - ir_col_min
+    y_ir_tile_size = ir_row_max-ir_row_min
+    #print(x_ir_tile_size, y_ir_tile_size)
     #print(ir_row_min, ir_col_min, ir_tile_size)
-    base_window_polygon = shp.geometry.Polygon([[0,0], [0,ir_tile_size ], [ir_tile_size, ir_tile_size], [ir_tile_size,0]])
+    base_window_polygon = shp.geometry.Polygon([[0,0], [0,x_ir_tile_size ], [y_ir_tile_size, x_ir_tile_size], [y_ir_tile_size,0]])
     window_polygon = shp.affinity.translate(base_window_polygon, ir_row_min, ir_col_min)
-    if ir_col_min <= 0 or ir_row_min <= 0:
+    if x_ir_tile_size <= 20 or y_ir_tile_size <= 20:
         return None
-    read_window =rio.windows.Window(ir_col_min, ir_row_min, ir_tile_size, ir_tile_size )
+    read_window =rio.windows.Window(ir_col_min, ir_row_min, x_ir_tile_size, y_ir_tile_size )
 
     #lock.acquire()
     
@@ -108,6 +110,7 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             index = row_index*len(colrange)+col_nr
             
             tile_rgb, shapes_rgb = extract_tile(tiff_handler, shapes_df, row, col, tile_size, lock)
+            
             tile_ir = extract_ir_tile(ir, row, col, tile_size, tiff_handler.transform)
             if tile_ir is None or tile_ir.size <= 0:
                 continue
@@ -121,12 +124,19 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             
             #print("raw", np.unique(tile_ir))
             
-            tile_ir = cv2.resize(tile_ir, (tile_size, tile_size), interpolation=cv2.INTER_LINEAR)
-            tile_ndvi = nir_to_ndvi(tile_ir, tile_rgb[:,:,0])
-            if tile_ndvi is None:
-                continue
+            small_tile_rgb = cv2.resize(tile_rgb[:,:,0], (tile_ir.shape[1], tile_ir.shape[0]))
+            #print("small tile rgb shape, nir shape", small_tile_rgb.shape, tile_ir.shape)
+            tile_ndvi = nir_to_ndvi(np.squeeze(tile_ir, -1),  small_tile_rgb)
+            #print("before clip" ,tile_ndvi.shape)
             tile_ndvi = tile_ndvi * 255.0
             tile_ndvi = np.clip(tile_ndvi, 0, 255)
+            #print("after clip", tile_ndvi.shape)
+            #cv2.imwrite(f"{target_dir}/patch_{index}.png", tile_ndvi)
+            tile_ndvi = cv2.resize(tile_ndvi, (tile_size, tile_size), interpolation=cv2.INTER_LINEAR)
+            #cv2.imwrite(f"{target_dir}/patch_{index}_after)resuze.png", tile_ndvi)
+            if tile_ndvi is None:
+                continue
+            
             #tile_ndvi = tile_ndvi.astype(np.uint8)
             #print("scaled", np.unique(tile_ir))
             
@@ -134,7 +144,6 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             
             #print(tile_rgb.shape, tile_ndvi.shape)
             tile_rgb = tile_rgb.astype(np.uint8)
-            tile_ndvi = tile_ndvi*255.0
             tile_ndvi = tile_ndvi.astype(np.uint8)
             tile_merged = np.append(tile_rgb, tile_ndvi, axis=-1)
             
