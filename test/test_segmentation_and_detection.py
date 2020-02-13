@@ -26,11 +26,14 @@ parser = argparse.ArgumentParser(prog="test_ml_detection.py",
                                                   + " "*4
                                                   + "--weights_snapshot_path=/home/username/Pobrane/model_final.pth"
                                                   + " "*4
-                                                  + "--rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif"),
+                                                  + "--rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif"
+                                                  + " "*4
+                                                  + "--nir_tif_path=/home/h/_drzewaBZBUAS/NIR_szprotawa_transparent_mosaic_group1.tif"),
                                     formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument("--config_yml_path", required=True, help="path to detectron2 configuration file")
 parser.add_argument("--weights_snapshot_path", required=True, help="path to detectron2 model")
 parser.add_argument("--rgb_tif_path", required=True, help="path to tiff with rgb map")
+parser.add_argument("--nir_tif_path", required=True, help="path to tiff with nir map")
 parser.add_argument("--forest_shp_path", required=True, help="path to tiff with shp showing where trees are ")
 
 args = parser.parse_args()
@@ -51,7 +54,7 @@ l.info("zaczynam segmentować las od innych rzeczy - potrwa to co najmniej 31 mi
 
 
 l.info("segmentacja lasu zakończona")
-iterator = ForestIterator(args.rgb_tif_path, args.forest_shp_path)
+iterator = ForestIterator(args.rgb_tif_path, args.forest_shp_path, args.nir_tif_path)
 l.info("zaczynam wykrywać chore drzewa - zajmie to co najmniej 20min, jeśli nie masz GPU to dłużeeej")
 #detections = detector.detect(rgb_img, ndvi_non_existing, mask) #takes 20minutes on GTX1080Ti
 
@@ -69,12 +72,12 @@ for patch in tqdm.tqdm(iterator, total=len(iterator)):
     
     #mask = forest_segmentator.mask(rgb,  ndvi_non_existing)
     mask = np.ones(rgb.shape[:2])
-    detections = detector.detect(rgb, ndvi_non_existing, mask)
+    detections = detector.detect(rgb, ndvi, mask)
     x_min, y_min = patch['left_upper_corner_coordinates']
     y_min_pixels, x_min_pixels = rio.transform.rowcol(geotiff.transform, x_min, y_min)
     
     for i, pred in enumerate(detections):
-        print(pred['col_min'], pred['row_min'], pred['col_max'], pred['row_max'])
+        #print(pred['col_min'], pred['row_min'], pred['col_max'], pred['row_max'])
         if pred['score'] > score_threshold:
             coors_to_write = []
             coors_to_write.append(rio.transform.xy(geotiff.transform, y_min_pixels+pred['row_min'], x_min_pixels+pred['col_min']) )
@@ -88,5 +91,5 @@ for patch in tqdm.tqdm(iterator, total=len(iterator)):
                 'properties': {'id': i},
             })
 '''
-python test/test_segmentation_and_detection.py --rgb_tif_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --config_yml_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0012249.pth --forest_shp_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/config.yml --weights_snapshot_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0012249.pth --forest_shp_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
+python test/test_segmentation_and_detection.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --nir_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/NIR_Swiebodzin.tif --weights_snapshot_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0024249.pth --config_yml_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/config.yml --forest_shp_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
 '''
