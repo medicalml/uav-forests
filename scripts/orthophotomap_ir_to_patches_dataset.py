@@ -27,8 +27,11 @@ def geometry_to_pixel_geometry(geometry, transform):
     return pix_geom
 
 def load_shapes_df(shapefile_path, transform):
+    print("geopandas reads shapefile, ", shapefile_path)
     shapes_df = gpd.read_file(shapefile_path)
+    print("file readed")
     shapes_df["pixel_geometry"] = shapes_df["geometry"].apply(lambda g: geometry_to_pixel_geometry(g, transform))
+    print("setting geometry")
     shapes_df = shapes_df.set_geometry("pixel_geometry")
     shapes_df['pixel_bbox'] = shapes_df["pixel_geometry"].envelope
     shapes_df = shapes_df.merge(shapes_df["pixel_geometry"].bounds.astype(int), left_index=True, right_index=True)
@@ -118,7 +121,7 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             
             #print("raw", np.unique(tile_ir))
             
-            tile_ir = cv2.resize(tile_ir, (tile_size, tile_size), interpolation=cv2.INTER_NEAREST)
+            tile_ir = cv2.resize(tile_ir, (tile_size, tile_size), interpolation=cv2.INTER_LINEAR)
             tile_ndvi = nir_to_ndvi(tile_ir, tile_rgb[:,:,0])
             if tile_ndvi is None:
                 continue
@@ -238,6 +241,7 @@ if __name__ == "__main__":
                                                   + "  --target-dir ./target_dataset/ \n"),
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--geotiff", required=True, help="path to orthophotomap file")
+    parser.add_argument("--nirtiff", required=True, help="path to NIR orthophotomap file")
     parser.add_argument("--shapefile", required=True, help="path to shapefile annotation file")
     parser.add_argument("--tile-size", required=True, type=int, help="size of a tile (in pixels)")
     parser.add_argument("--step", required=True, type=int, help="step size for sliding window")
@@ -255,16 +259,19 @@ if __name__ == "__main__":
                         help="whether use only one cpu")
     
     args = parser.parse_args()
-    ir = rio.open('/home/h/_drzewaBZBUAS/Szprotawa_translated_EVI.tif')
+    print("start - opening ir tiff")
+    ir = rio.open(args.nirtiff)
     with rio.open(args.geotiff) as geotiff:
-        
+        print("creating out image which will contain ndvi")
+        #image_out = geotiff
         if not os.path.exists(args.target_dir):
             os.makedirs(args.target_dir)
         else: 
             shutil.rmtree(args.target_dir)
             os.makedirs(args.target_dir)
-
+        print("ustanowiono foldery")
         img_shape = geotiff.shape
+        print("ładowanie shapeow")
         shapes_df = load_shapes_df(args.shapefile, geotiff.transform)
         print("SHAPE", img_shape)
         print(ir.shape)
