@@ -259,7 +259,8 @@ if __name__ == "__main__":
                         help="whether use only one cpu")
     
     args = parser.parse_args()
-    print("start - opening ir tiff")
+    print("start - opening ir tiff he")
+    print(args.nirtiff)
     ir = rio.open(args.nirtiff)
     with rio.open(args.geotiff) as geotiff:
         print("creating out image which will contain ndvi")
