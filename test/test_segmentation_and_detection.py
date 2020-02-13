@@ -65,14 +65,14 @@ for patch in tqdm.tqdm(iterator, total=len(iterator)):
     rgb = patch['rgb']
     rgb = np.moveaxis(rgb, 0, -1)
     #print(rgb.shape)
-    ndvi_non_existing = np.ones(rgb.shape[:2])
+    ndvi = patch['ndvi']
+    
     #mask = forest_segmentator.mask(rgb,  ndvi_non_existing)
     mask = np.ones(rgb.shape[:2])
     detections = detector.detect(rgb, ndvi_non_existing, mask)
     x_min, y_min = patch['left_upper_corner_coordinates']
     y_min_pixels, x_min_pixels = rio.transform.rowcol(geotiff.transform, x_min, y_min)
     
-
     for i, pred in enumerate(detections):
         print(pred['col_min'], pred['row_min'], pred['col_max'], pred['row_max'])
         if pred['score'] > score_threshold:
@@ -88,10 +88,5 @@ for patch in tqdm.tqdm(iterator, total=len(iterator)):
                 'properties': {'id': i},
             })
 '''
-if not os.path.exists("temp"):
-    os.mkdir("temp")
-
-pickle.dump(detections, open("temp/save.p", "wb" ) )
-subprocess.call(["python", "test/predictions_to_shp.py", "--rgb_tif_path=/home/h/_drzewaBZBUAS/RGB_szprotawa_transparent_mosaic_group1.tif"])
-python test/test_segmentation_and_detection.py --rgb_tif_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --config_yml_path=/home/m/Pobrane/config.yml --weights_snapshot_path=/home/m/Pobrane/model_final.pth --forest_shp_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
+python test/test_segmentation_and_detection.py --rgb_tif_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --config_yml_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0012249.pth --forest_shp_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/config.yml --weights_snapshot_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0012249.pth --forest_shp_path=/home/m/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
 '''

@@ -18,6 +18,7 @@ class ForestIterator:
         self.alpha_channel = alpha_channel
         self.channels_first = channels_first
         self.rgb_tif_handler = rio.open(rgb_tif_path)
+        self.transform = self.rgb_tif_handler.transform
         if self.nir_path is not None:
             self.nir_tif_handler = rio.open(nir_tif_path)
         self.shapes_handler = fiona.open(forest_shp_path)
@@ -46,7 +47,8 @@ class ForestIterator:
 
     def __getitem__(self, item):
         single_shape = self.shapes_handler[item]
-        #print(single_shape['geometry'])
+        if single_shape is None:
+            return None
         shp = self.initiate_geoms(single_shape['geometry'])
         x = np.asarray([point[0] for poly in shp for point in poly])
         y = np.asarray([point[1] for poly in shp for point in poly])
@@ -67,15 +69,23 @@ class ForestIterator:
 
         if self.channels_first:
             masked = rio.plot.reshape_as_raster(masked)
-
+        row_min, column_min = rio.transform.rowcol(self.transform, x.min(), y.max())
+        row_max, column_max = rio.transform.rowcol(self.transform, x.max(), y.min())
         result = {'rgb': masked,
                   'description': single_shape['properties'],
                   'left_upper_corner_coordinates':[x.min(),y.max()],
-                  'right_lower_corner_coordinates':[x.max(),y.min()]}
+                  'right_lower_corner_coordinates':[x.max(),y.min()],
+                  'columns': [column_min, column_max],
+                  'rows': [row_min, row_max]}
                  
         if self.nir_path is not None:
+            
             ndvi = self.create_ndvi(x.min(), y.min(), x.max(), y.max())
+            #print('ndvi.shape',ndvi.shape)
+            #print('rgb.shape',masked.shape)
+            #print('mask.shape', mask.shape)
             masked_ndvi = cv2.bitwise_and(ndvi, ndvi, mask=mask)
+
             result["ndvi"] = masked_ndvi
 
         return result
@@ -84,10 +94,13 @@ class ForestIterator:
         mask = np.zeros(img.shape[:2], dtype=np.uint8)
 
         for poly in shapes:
-            joint = [self.rgb_tif_handler.index(l[0], l[1]) for l in poly]
-            joint = np.array([[[l[1] - col_offset, l[0] - row_offset]
+            
+            joint = [self.rgb_tif_handler.index(l[0], l[1]) for l in poly] #longtitude, latitude - x, y
+            joint = np.array([[[l[1] - col_offset, l[0] - row_offset] # in cv2 point is (x,y)
                                for l in joint]], dtype=np.int32)
+            
             cv2.fillPoly(mask, pts=[joint], color=255)
+        
         return mask
 
     def __len__(self):

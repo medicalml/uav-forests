@@ -36,10 +36,12 @@ class SickTreesDetectron2Detector:
 
         if self.bgr_input:
             rgb_image = rgb_image[:, :, ::-1]
-
-        image = rgb_image * forest_mask[..., np.newaxis]
+        
+        rgb_and_ndvi = np.append(rgb_image, np.expand_dims(ndvi_image, axis=-1), axis=-1)
+        image = rgb_and_ndvi * forest_mask[..., np.newaxis]
+        
         predictions = []
-        for row, col, window in tqdm.tqdm(sliding_window_iterator(image, self.patch_size)):
+        for row, col, window in sliding_window_iterator(image, self.patch_size):
             pred = self._detect_on_patch(window, row, col)
             predictions += pred
         return predictions

@@ -77,5 +77,4 @@ class ForestSegmentation:
         ret, mask_r = cv2.threshold(entr, self.brightness_threshold, 1, cv2.THRESH_BINARY)
         mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_OPEN, kernel)
         mask_r = np.uint8(mask_r)
-
         return mask_r
