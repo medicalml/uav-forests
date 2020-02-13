@@ -8,7 +8,7 @@ import rasterio
 from scipy.spatial import KDTree
 from pykdtree.kdtree import KDTree
 
-from src.counting.classical_tree_counter import TreeCounter
+from src.counting.classical_tree_counter_2 import TreeCounter
 from src.orthophotomap.forest_segmentation import ForestSegmentation
 from src.counting.classical_tree_counter import show
 #hyperparameters
@@ -72,8 +72,8 @@ if __name__ == '__main__':
 
     shape_path = os.path.join(path, "tree07.shp")
 
-    X_MIN = 0
-    Y_MIN = 0
+    X_MIN = 1000
+    Y_MIN = 1000
 
     X_MAX = 2800
     Y_MAX = 2800
@@ -109,17 +109,21 @@ if __name__ == '__main__':
     corresponding_points, sum_of_errors = get_corresponding_points_and_count_total_detection_error(
         filtered_original_positions, detected_trees_positons)
 
+
     print(f"Detected points: {len(detected_trees_positons)} Original points: {len(filtered_original_positions)}")
 
-    for original, detected in corresponding_points:
+    # for original, detected in corresponding_points:
+    #     color = list(np.random.choice(range(256), size=3))
+    #     x1, y1 = original
+    #     x2, y2 = detected
+    #     # small_img[x1:x1 + DOT_SIZE, y1: y1 + DOT_SIZE] = color
+    #     small_img[x2:x2 + DOT_SIZE, y2: y2 + DOT_SIZE] = color
+
+    for x,y in detected_trees_positons:
         color = list(np.random.choice(range(256), size=3))
-        x1, y1 = original
-        x2, y2 = detected
-        # small_img[x1:x1 + DOT_SIZE, y1: y1 + DOT_SIZE] = color
-        small_img[x2:x2 + DOT_SIZE, y2: y2 + DOT_SIZE] = color
+        small_img[x:x + DOT_SIZE, y: y + DOT_SIZE] = color
 
-
-    # small_img = cv2.resize(small_img, (1000, 1000))
+    small_img = cv2.resize(small_img, (1000, 1000))
 
     cv2.imshow(f"Avg error: {int(sum_of_errors/len(corresponding_points))}", small_img)
     # cv2.imshow("Masked", cv2.bitwise_and(small_img, small_img, mask=mask))
