@@ -8,7 +8,7 @@ import rasterio
 from scipy.spatial import KDTree
 from pykdtree.kdtree import KDTree
 
-from src.counting.classical_tree_counter_2 import TreeCounter
+from src.counting.classical_tree_counter import TreeCounter
 from src.orthophotomap.forest_segmentation import ForestSegmentation
 from src.counting.classical_tree_counter import show
 #hyperparameters
@@ -65,6 +65,18 @@ def get_corresponding_points_and_count_total_detection_error(original_points, de
 
     return corresponding_points, sum(neighbor_dists)
 
+
+def add_points_to_img(img, points):
+
+    img = img.copy()
+
+    for x,y in points:
+        color = list(np.random.choice(range(256), size=3))
+        img[x:x + DOT_SIZE, y: y + DOT_SIZE] = color
+
+    return img
+
+
 if __name__ == '__main__':
     path = "/home/piotr/Downloads/Swiebodzin 04 1800m las jednolity/"
 
@@ -119,9 +131,8 @@ if __name__ == '__main__':
     #     # small_img[x1:x1 + DOT_SIZE, y1: y1 + DOT_SIZE] = color
     #     small_img[x2:x2 + DOT_SIZE, y2: y2 + DOT_SIZE] = color
 
-    for x,y in detected_trees_positons:
-        color = list(np.random.choice(range(256), size=3))
-        small_img[x:x + DOT_SIZE, y: y + DOT_SIZE] = color
+
+    small_img = add_points_to_img(small_img, detected_trees_positons)
 
     small_img = cv2.resize(small_img, (1000, 1000))
 
