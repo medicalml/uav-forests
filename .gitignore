@@ -14,9 +14,8 @@ temp/*
 tools.*
 trees.*
 old_temp/
-temp_avg/
-temp/
-outputs/
+
+output/
 ### Data ###
 *.csv
 *.dat

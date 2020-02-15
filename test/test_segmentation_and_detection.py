@@ -17,7 +17,7 @@ from src.detection.ml_detection import SickTreesDetectron2Detector
 from src.orthophotomap.forest_iterator import ForestIterator
 from src.orthophotomap.forest_segmentation import ForestSegmentation
 
-parser = argparse.ArgumentParser(prog="test_ml_detection.py",
+parser = argparse.ArgumentParser(prog="test_segmentation_and_detection.py",
                                      description=("This script create predictions and save results in pickle Example command \n"
                                                   + " "*4
                                                   + "python test_ml_detection.py \\\n"
@@ -62,9 +62,13 @@ schema = {
     'geometry': 'Polygon',
     'properties': {'id': 'int'},
 }
-c = fiona.open('temp_avg/predictions.shp', 'w', 'ESRI Shapefile', schema)
-score_threshold = 0.5
+if not os.path.exists('output'):
+    os.makedirs('output')
+c = fiona.open('output/ill_trees_predictions.shp', 'w', 'ESRI Shapefile', schema)
+score_threshold = 0.2
 for patch in tqdm.tqdm(iterator, total=len(iterator)):
+    if patch is None:
+        break
     rgb = patch['rgb']
     rgb = np.moveaxis(rgb, 0, -1)
     #print(rgb.shape)
@@ -91,5 +95,5 @@ for patch in tqdm.tqdm(iterator, total=len(iterator)):
                 'properties': {'id': i},
             })
 '''
-python test/test_segmentation_and_detection.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --nir_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/NIR_Swiebodzin.tif --weights_snapshot_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0024249.pth --config_yml_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/config.yml --forest_shp_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
+python test/test_segmentation_and_detection.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --nir_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/NIR_Swiebodzin.tif --weights_snapshot_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0029999.pth --config_yml_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/config.yml --forest_shp_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
 '''
