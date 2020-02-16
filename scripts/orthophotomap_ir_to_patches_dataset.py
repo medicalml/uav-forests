@@ -112,9 +112,7 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             tile_rgb, shapes_rgb = extract_tile(tiff_handler, shapes_df, row, col, tile_size, lock)
             
             tile_ir = extract_ir_tile(ir, row, col, tile_size, tiff_handler.transform)
-            if tile_ir is None or tile_ir.size <= 0:
-                continue
-            if tile_ir.mean() < -100:
+            if tile_ir is None or tile_ir.size <= 0 or tile_ir.mean() < -100 or tile_rgb is None:
                 continue
             #second_lock.acquire()
             #print(tile_ir.shape)
@@ -124,18 +122,20 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             
             #print("raw", np.unique(tile_ir))
             
-            small_tile_rgb = cv2.resize(tile_rgb[:,:,0], (tile_ir.shape[1], tile_ir.shape[0]))
+            #small_tile_rgb = cv2.resize(tile_rgb[:,:,0], (tile_ir.shape[1], tile_ir.shape[0]))
             #print("small tile rgb shape, nir shape", small_tile_rgb.shape, tile_ir.shape)
-            tile_ndvi = nir_to_ndvi(np.squeeze(tile_ir, -1),  small_tile_rgb)
+            tile_ir = cv2.resize(tile_ir, (tile_rgb.shape[:2]))
+            tile_ndvi = nir_to_ndvi(tile_ir, tile_rgb[:,:,2])
             #print("before clip" ,tile_ndvi.shape)
-            tile_ndvi = tile_ndvi * 255.0
+            #print(np.min(tile_ndvi), np.max(tile_ndvi) )
+            tile_ndvi += 1.0
+            tile_ndvi = tile_ndvi * 255.0/2.0
             tile_ndvi = np.clip(tile_ndvi, 0, 255)
             #print("after clip", tile_ndvi.shape)
             #cv2.imwrite(f"{target_dir}/patch_{index}.png", tile_ndvi)
-            tile_ndvi = cv2.resize(tile_ndvi, (tile_size, tile_size), interpolation=cv2.INTER_LINEAR)
+            #tile_ndvi = cv2.resize(tile_ndvi, (tile_size, tile_size), interpolation=cv2.INTER_LINEAR)
             #cv2.imwrite(f"{target_dir}/patch_{index}_after)resuze.png", tile_ndvi)
-            if tile_ndvi is None:
-                continue
+            
             
             #tile_ndvi = tile_ndvi.astype(np.uint8)
             #print("scaled", np.unique(tile_ir))
@@ -149,7 +149,8 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
             
             #print(tile_merged.shape)
             #print(tile_rgb.dtype)
-            
+            #cv2.imwrite(f"{target_dir}/a_{index}r.png", tile_merged[:,:,0])
+            #cv2.imwrite(f"{target_dir}/a_{index}n.png", tile_merged[:,:,4])
             imr = Image.fromarray(tile_merged[:,:,0]) 
             img = Image.fromarray(tile_merged[:,:,1])
             imb = Image.fromarray(tile_merged[:,:,2]) 
@@ -160,7 +161,7 @@ def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, ma
                 #cv2.imwrite(f"{target_dir}/patch_{index}.png", tile_rgb)
                 #cv2.imwrite(f"{target_dir}/patch_ir_{index}.png", tile_ndvi)
                 #im.save(f"{target_dir}/patch_ir_{index}.tiff", "TIFF")
-                imr.save(f"{target_dir}/patch_{index}.tif", format="tiff", append_images=[img, imb, imn], save_all=True)
+                imr.save(f"{target_dir}/patch_{index}.tif", format="tiff", append_images=[img, imb, imn], save_all=True, metadata={'axes': 'RGBN'})
                 annotations += [{"patch_number": index, **s} for s in shapes_rgb]
 
             del tile_ir
