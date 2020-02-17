@@ -4,10 +4,18 @@ import pandas as pd
 import geopandas as gpd
 import numpy as np
 
+import imgaug as ia
+import imgaug.augmenters as iaa
+from imgaug.augmentables.bbs import BoundingBox, BoundingBoxesOnImage
+from imgaug.augmentables.heatmaps import HeatmapsOnImage
+from imgaug.augmentables.segmaps import SegmentationMapsOnImage
+
 from detectron2.structures import BoxMode
 from detectron2.data import DatasetCatalog, MetadataCatalog
 
 from sklearn.model_selection import train_test_split
+
+from typing import List, Dict
 
 
 def split_train_val_test(samples, train_ratio, val_ratio, test_ratio=None):
@@ -74,3 +82,75 @@ def register_detectron2_datasets(name, images_dir, splits, min_bbox_area=200, li
                                                                  lim))
 
         MetadataCatalog.get(f"{name}_{d}").set(thing_classes=["SickTrees"])
+
+
+def augment_image(rgb_image: np.ndarray, bounding_boxes: List[Dict],
+                  ndvi_image: np.ndarray = None,
+                  forest_mask: np.ndarray = None):
+
+    bbox_on_image = BoundingBoxesOnImage([
+        BoundingBox(x1=annotation["bbox"][0],
+                    y1=annotation["bbox"][1],
+                    x2=annotation["bbox"][2],
+                    y2=annotation["bbox"][3],
+                    label=annotation["category_id"])
+        for annotation in bounding_boxes
+    ], rgb_image.shape)
+
+    hmap_on_image = None
+    if ndvi_image:
+        hmap_on_image = HeatmapsOnImage(ndvi_image, rgb_image.shape,
+                                        min_value=ndvi_image.min(), 
+                                        max_value=ndvi_image.max())
+    smap_on_image = None
+    if forest_mask:
+        smap_on_image = SegmentationMapsOnImage(forest_mask, rgb_image.shape)
+
+    rot = iaa.Rot90(ia.ALL)
+    shift = iaa.Affine(translate_percent=(-0.2, 0.2))
+    flip = iaa.OneOf([iaa.Fliplr(0.5), iaa.Flipud(0.5)])
+    scale = iaa.Affine(scale=(0.75, 1.25))
+    motion_blur = iaa.MotionBlur()
+    cutout = iaa.Cutout(nb_iterations=(1, 3), size=(0.01, 0.1), squared=False)
+    fog = iaa.imgcorruptlike.Fog(severity=1)
+    defocus = iaa.imgcorruptlike.DefocusBlur(severity=1)
+    contrast = iaa.imgcorruptlike.Contrast(severity=1)
+
+    seq_weather = iaa.Sequential([
+        iaa.Sometimes(0.1, fog),
+    ], random_order=True)
+
+    seq_initial = iaa.Sequential([
+        rot,
+        iaa.Sometimes(0.5, flip),
+        iaa.Sometimes(0.2, contrast)
+    ], random_order=True)
+
+    seq_camera = iaa.Sequential([
+        iaa.Sometimes(0.1, defocus),
+        iaa.Sometimes(0.2, motion_blur),
+    ], random_order=False)
+
+    seq_obstacles = iaa.Sequential([
+        iaa.Sometimes(0.2, cutout),
+        iaa.Sometimes(0.1, scale),
+        iaa.Sometimes(0.2, shift)
+    ], random_order=False)
+
+    seq = iaa.Sequential([seq_weather, seq_initial,
+                          seq_camera, seq_obstacles],
+                         random_order=False)
+
+    aug_img, aug_smap, aug_hmap, aug_bbox = seq(image=rgb_image, 
+                                                segmentation_maps=smap_on_image, 
+                                                heatmaps=hmap_on_image, 
+                                                bounding_boxes=bbox_on_image)
+    
+    return {"rgb": aug_img,
+            "mask": aug_smap.arr.squeeze(),
+            "ndvi": aug_hmap.to_uint8().squeeze(),
+            "annotations": [{"bbox": [bb.x1_int, bb.y1_int, bb.x2_int, bb.y2_int],
+                             "bbox_mode": BoxMode.XYXY_ABS,
+                             "category_id": bb.label}
+                            for bb in aug_bbox.bounding_boxes.clip_out_of_image()]}
+    
