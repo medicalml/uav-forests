@@ -138,8 +138,7 @@ class TreeCounter:
         # keypoints = self._detect_blobs(img=masked_rgb, params=self.params)
         labels, count = label(masked_rgb)
 
-        centers = center_of_mass(np.ones(labels.shape), labels,
-                                 [i for i in range(count) if np.count_nonzero(labels == i) > 36])
+        centers = center_of_mass(np.ones(labels.shape), labels,[i for i in range(count) if np.count_nonzero(labels == i) > 36])
         # centers = center_of_mass(np.ones(labels.shape), labels, [i for i in range(count)])
         # all_key_points += keypoints
         # trees_points += [k.pt for k in keypoints]
