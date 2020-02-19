@@ -64,8 +64,8 @@ schema = {
 }
 if not os.path.exists('output'):
     os.makedirs('output')
-c = fiona.open('output/ill_trees_predictions.shp', 'w', 'ESRI Shapefile', schema)
-score_threshold = 0.2
+c = fiona.open('output/ill_trees_predictions'+args.rgb_tif_path.split("/")[-2]+'.shp', 'w', 'ESRI Shapefile', schema)
+score_threshold = 0.5
 for patch in tqdm.tqdm(iterator, total=len(iterator)):
     if patch is None:
         break
@@ -73,7 +73,9 @@ for patch in tqdm.tqdm(iterator, total=len(iterator)):
     rgb = np.moveaxis(rgb, 0, -1)
     #print(rgb.shape)
     ndvi = patch['ndvi']
-    
+    ndvi = ndvi*255.0
+    ndvi = np.clip(ndvi, 0, 255)
+    #print(np.min(ndvi), np.max(ndvi))
     #mask = forest_segmentator.mask(rgb,  ndvi_non_existing)
     mask = np.ones(rgb.shape[:2])
     detections = detector.detect(rgb, ndvi, mask)
@@ -95,5 +97,5 @@ for patch in tqdm.tqdm(iterator, total=len(iterator)):
                 'properties': {'id': i},
             })
 '''
-python test/test_segmentation_and_detection.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --nir_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/NIR_Swiebodzin.tif --weights_snapshot_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0029999.pth --config_yml_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/config.yml --forest_shp_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
+python test/test_segmentation_and_detection.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Zagan/RGB_Zagan.tif --nir_tif_path=/home/h/ML\ dane\ dla\ kola/Zagan/NIR_Zagan.tif --weights_snapshot_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/model_0044999.pth --config_yml_path=/home/h/uav-forests/tboard_logs/retinanet_test_2020-01-21T23:40/config.yml --forest_shp_path=/home/h/ML\ dane\ dla\ kola/Zagan/obszar_zagan.shp
 '''
