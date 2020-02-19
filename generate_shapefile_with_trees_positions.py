@@ -26,10 +26,10 @@ if __name__ == '__main__':
     parser.add_argument("--geotiff", required=True, help="path to geotiff file")
     parser.add_argument("--shapefile", required=True, help="path to shapefile annotation file")
     parser.add_argument("--target_dir", required=True, help="directory to store output shape with tree positions")
-    parser.add_argument("--update_shapefile", required=True, help="specify whether You want to update original shp file")
+    # parser.add_argument("--update_shapefile", required=True, help="specify whether You want to update original shp file")
 
     args = parser.parse_args()
-
+    # iterator = 0
     with rio.open(args.geotiff) as geotiff:
 
         shape_path = args.shapefile
@@ -55,7 +55,7 @@ if __name__ == '__main__':
             trees = counting_dict["trees"]
             number_of_trees = len(trees)
 
-            edit_initial_shape.append((patch["description"]["id"], number_of_trees))
+            edit_initial_shape.append((patch["description"]["id_ob"], number_of_trees))
 
             for idx, (y, x) in enumerate(trees):
                 y_max, x_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
@@ -67,9 +67,8 @@ if __name__ == '__main__':
                     'properties': {'id': idx},
                 })
 
-            if bool(args.update_shapefile):
-                it.update_shapefile(edit_initial_shape, ["drzewa"])
-
-            break
-
+            it.update_shapefile(edit_initial_shape, ["drzewa"])
+            # if iterator > 10:
+            #     break
+            # iterator += 1
 

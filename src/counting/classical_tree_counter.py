@@ -72,20 +72,19 @@ class TreeCounter:
         return keypoints
 
     def _preprocess_forest_img(self, img):
-        l_channel = self._apply_brightness_contrast(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), 80, 128)
-        kernel = np.ones((3, 3), np.uint8)
-
-        # show(l_channel)
-
-        # mask_r = l_channel
-
-        # ret, mask_r = cv2.threshold(l_channel, 2, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        mean = np.mean(gray)
+        rate = mean/0.75
+        contrast = 128
+        print(rate)
+        l_channel = self._apply_brightness_contrast(gray, int(rate), int(contrast))
+        # 48, 128
         ret, mask_r = cv2.threshold(l_channel, 140, 255, cv2.THRESH_BINARY)
-        mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_CLOSE, kernel)
+
+        kernel = np.ones((2, 2), np.uint8)
         mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_OPEN, kernel)
 
         mask_r = np.uint8(mask_r)
-
         return mask_r
 
     def _apply_brightness_contrast(self, input_img, brightness=0, contrast=0):
@@ -137,13 +136,14 @@ class TreeCounter:
 
         # keypoints = self._detect_blobs(img=masked_rgb, params=self.params)
         labels, count = label(masked_rgb)
-
-        centers = center_of_mass(np.ones(labels.shape), labels,[i for i in range(count) if np.count_nonzero(labels == i) > 36])
+        indices_unique, counts_indices = np.unique(labels, return_counts=True)
+        centers = center_of_mass(np.ones(labels.shape), labels,
+                                 [indices_unique[i] for i in range(len(indices_unique)) if counts_indices[i] > 36])
         # centers = center_of_mass(np.ones(labels.shape), labels, [i for i in range(count)])
         # all_key_points += keypoints
         # trees_points += [k.pt for k in keypoints]
         # count += len(trees_points)
-        print(centers)
+        # print(centers)
         return {"trees": centers, "count": count, "keypoints": all_key_points, "mask": masked_rgb}
 
 
