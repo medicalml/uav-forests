@@ -3,12 +3,8 @@
 
 .vscode
 
-data
-data/*
-target_dir/*
-test/
-train/
-val/
+data_out/*
+
 .vscode
 .idea
 *.pkl

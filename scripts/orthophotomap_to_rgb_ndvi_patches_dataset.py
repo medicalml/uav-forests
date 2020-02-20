@@ -20,6 +20,7 @@ from PIL import Image
 #WORKS ONLY IN SINGLE PROCESS MODE
 sys.path.insert(0, '/home/h/uav-forests')
 from src.utils.infrared import nir_to_ndvi
+
 def geometry_to_pixel_geometry(geometry, transform):
     x, y = geometry.exterior.coords.xy
     x_pix, y_pix = rio.transform.rowcol(transform, x, y)
@@ -37,21 +38,21 @@ def load_shapes_df(shapefile_path, transform):
     shapes_df = shapes_df.merge(shapes_df["pixel_geometry"].bounds.astype(int), left_index=True, right_index=True)
     return shapes_df
 
-def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, lock):
+def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size):
     base_window_polygon = shp.geometry.Polygon([[0,0], [0,tile_size], [tile_size,tile_size], [tile_size,0]])
     window_polygon = shp.affinity.translate(base_window_polygon, row_offset, col_offset)
     
     read_window =rio.windows.Window(col_offset, row_offset, tile_size, tile_size)
 
-    #lock.acquire()
+   
     
     some_window = None
-    with lock:
-        while some_window is None:
-            try:
-                some_window = tiff_handler.read(window=read_window)
-            except rasterio.errors.RasterioIOError as e:
-                pass #print("error")
+    
+    while some_window is None:
+        try:
+            some_window = tiff_handler.read(window=read_window)
+        except rasterio.errors.RasterioIOError as e:
+            pass #print("error")
     
     tile = some_window.transpose(1,2,0).copy()
     shapes = shapes_df[~shapes_df["pixel_geometry"].intersection(window_polygon).is_empty]
@@ -72,25 +73,17 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, loc
 def extract_ir_tile(ir_handler, row_offset, col_offset, rgb_tile_size, transform_rgb):
     x0, y0 = rio.transform.xy(transform_rgb, row_offset, col_offset)
     x1, y1 = rio.transform.xy(transform_rgb, row_offset+rgb_tile_size, col_offset+rgb_tile_size)
-    
-
     ir_row_min, ir_col_min = rio.transform.rowcol(ir_handler.transform, x0, y0)
     ir_row_max, ir_col_max = rio.transform.rowcol(ir_handler.transform, x1, y1)
     ir_row_min, ir_col_min = [0 if dim<0 else dim for dim in [ir_row_min, ir_col_min]]
-    #print(ir_col_max - ir_col_min, ir_row_max-ir_row_min)
-    #print(ir_row_min, ir_col_min, ir_row_max, ir_col_max)
     x_ir_tile_size = ir_col_max - ir_col_min
     y_ir_tile_size = ir_row_max-ir_row_min
-    #print(x_ir_tile_size, y_ir_tile_size)
-    #print(ir_row_min, ir_col_min, ir_tile_size)
     base_window_polygon = shp.geometry.Polygon([[0,0], [0,x_ir_tile_size ], [y_ir_tile_size, x_ir_tile_size], [y_ir_tile_size,0]])
     window_polygon = shp.affinity.translate(base_window_polygon, ir_row_min, ir_col_min)
     if x_ir_tile_size <= 20 or y_ir_tile_size <= 20:
         return None
     read_window =rio.windows.Window(ir_col_min, ir_row_min, x_ir_tile_size, y_ir_tile_size )
 
-    #lock.acquire()
-    
     some_window = None
     
     while some_window is None:
@@ -103,73 +96,51 @@ def extract_ir_tile(ir_handler, row_offset, col_offset, rgb_tile_size, transform
 
     return tile
     
-def write(colrange, tiff_handler, ir, shapes_df, rows_and_indexes, tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index, done_indicator):
+def write(colrange, row_range, tiff_handler, ir, shapes_df,  tile_size, max_empty_pixels_threshold, target_dir):
     annotations = []
-    for row_index, row in rows_and_indexes:
+    for row_index, row in tqdm.tqdm(enumerate(row_range), total=len(row_range)):
         for col_nr, col in enumerate(colrange):
             index = row_index*len(colrange)+col_nr
             
-            tile_rgb, shapes_rgb = extract_tile(tiff_handler, shapes_df, row, col, tile_size, lock)
+            tile_rgb, shapes_rgb = extract_tile(tiff_handler, shapes_df, row, col, tile_size)
             
             tile_ir = extract_ir_tile(ir, row, col, tile_size, tiff_handler.transform)
+            # -10000 here 
             if tile_ir is None or tile_ir.size <= 0 or tile_ir.mean() < -100 or tile_rgb is None:
                 continue
-            #second_lock.acquire()
             #print(tile_ir.shape)
             alpha = tile_rgb[:,:,3].astype(np.float32)/255
-            #second_lock.release()
             tile_rgb = cv2.cvtColor(tile_rgb, cv2.COLOR_RGBA2BGRA)
             
-            #print("raw", np.unique(tile_ir))
-            
-            #small_tile_rgb = cv2.resize(tile_rgb[:,:,0], (tile_ir.shape[1], tile_ir.shape[0]))
-            #print("small tile rgb shape, nir shape", small_tile_rgb.shape, tile_ir.shape)
             tile_ir = cv2.resize(tile_ir, (tile_rgb.shape[:2]))
             tile_ndvi = nir_to_ndvi(tile_ir, tile_rgb[:,:,2])
-            #print("before clip" ,tile_ndvi.shape)
-            #print(np.min(tile_ndvi), np.max(tile_ndvi) )
             tile_ndvi += 1.0
             tile_ndvi = tile_ndvi * 255.0/2.0
             tile_ndvi = np.clip(tile_ndvi, 0, 255)
-            #print("after clip", tile_ndvi.shape)
-            #cv2.imwrite(f"{target_dir}/patch_{index}.png", tile_ndvi)
-            #tile_ndvi = cv2.resize(tile_ndvi, (tile_size, tile_size), interpolation=cv2.INTER_LINEAR)
-            #cv2.imwrite(f"{target_dir}/patch_{index}_after)resuze.png", tile_ndvi)
+        
             
-            
-            #tile_ndvi = tile_ndvi.astype(np.uint8)
-            #print("scaled", np.unique(tile_ir))
             
             tile_ndvi = np.expand_dims(tile_ndvi, -1)
             
-            #print(tile_rgb.shape, tile_ndvi.shape)
             tile_rgb = tile_rgb.astype(np.uint8)
             tile_ndvi = tile_ndvi.astype(np.uint8)
             tile_merged = np.append(tile_rgb, tile_ndvi, axis=-1)
             
-            #print(tile_merged.shape)
-            #print(tile_rgb.dtype)
-            #cv2.imwrite(f"{target_dir}/a_{index}r.png", tile_merged[:,:,0])
-            #cv2.imwrite(f"{target_dir}/a_{index}n.png", tile_merged[:,:,4])
-            imr = Image.fromarray(tile_merged[:,:,0]) 
+            imb = Image.fromarray(tile_merged[:,:,0]) 
             img = Image.fromarray(tile_merged[:,:,1])
-            imb = Image.fromarray(tile_merged[:,:,2]) 
+            imr = Image.fromarray(tile_merged[:,:,2]) 
             imn = Image.fromarray(tile_merged[:,:,4]) 
             
-            #print(tile_rgb_ir.shape)
             if len(shapes_rgb) > 0 or alpha.mean() > max_empty_pixels_threshold:
-                #cv2.imwrite(f"{target_dir}/patch_{index}.png", tile_rgb)
-                #cv2.imwrite(f"{target_dir}/patch_ir_{index}.png", tile_ndvi)
-                #im.save(f"{target_dir}/patch_ir_{index}.tiff", "TIFF")
-                imr.save(f"{target_dir}/patch_{index}.tif", format="tiff", append_images=[img, imb, imn], save_all=True, metadata={'axes': 'RGBN'})
+                imb.save(f"{target_dir}/patch_{index}.tif", format="tiff", append_images=[img, imr, imn], save_all=True, metadata={'axes': 'BGRN'})
                 annotations += [{"patch_number": index, **s} for s in shapes_rgb]
 
             del tile_ir
             del tile_rgb
            
-        done_indicator.put(1)
+       
 
-    return_dict[cpu_index] = annotations
+    return annotations
 
 def my_progressbar(task_number, done_indicator):
     counter = 0
@@ -185,52 +156,13 @@ def rolling_window(tiff_handler, ir, shapes_df, target_dir,
                    min_row, max_row, min_col, max_col, 
                    tile_size, step, 
                    max_empty_pixels_threshold,
-                   progressbar, single_process):
+                   progressbar):
     
     annotations = []
     rowrange = range(min_row, max_row + 1 - step, step)
     colrange = range(min_col, max_col + 1 - step, step)
     
-    manager = multiprocessing.Manager()
-    
-    return_dict = manager.dict()
-    
-    done_indicator = multiprocessing.Queue()
-    jobs = []
-    rows_and_indexes = {}
-    if single_process:
-        rows_per_cpu = len(rowrange)
-    else:
-        rows_per_cpu = len(rowrange)//multiprocessing.cpu_count()
-    
-    if rows_per_cpu == 0:
-        rows_per_cpu = 1
-    
-    lock = multiprocessing.RLock()
-
-    for row_index, row in enumerate(rowrange):
-        cpu_index = row_index//rows_per_cpu
-        
-        if cpu_index not in rows_and_indexes.keys():
-            rows_and_indexes[cpu_index] = []
-        
-        rows_and_indexes[cpu_index] += [(row_index, row)]
-
-    for cpu_index in rows_and_indexes.keys():
-        p = multiprocessing.Process(target=write, args=(colrange, tiff_handler, ir, shapes_df, rows_and_indexes[cpu_index], tile_size, max_empty_pixels_threshold, target_dir, return_dict, lock, cpu_index, done_indicator))
-        jobs.append(p)
-        p.start()
-    
-    if progressbar:
-        p = multiprocessing.Process(target=my_progressbar, args=(len(rowrange), done_indicator))
-        jobs.append(p)
-        p.start()
-
-    for proc in jobs:
-        proc.join()
-
-    for cpu_index in sorted(return_dict.keys()):
-        annotations += return_dict[cpu_index]
+    annotations = write(colrange, rowrange, tiff_handler, ir, shapes_df, tile_size, max_empty_pixels_threshold, target_dir)
 
     annotation = gpd.GeoDataFrame(annotations)
     annotation.to_pickle(f"{target_dir}/annotation.pkl")
@@ -265,9 +197,6 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", dest="verbose", action="store_true", default=False,
                         help="whether to be verbose")
     
-    parser.add_argument("--single-process", dest="single_process", action="store_true", default=False,
-                        help="whether use only one cpu")
-    
     args = parser.parse_args()
     print("start - opening ir tiff he")
     print(args.nirtiff)
@@ -290,5 +219,5 @@ if __name__ == "__main__":
                        args.min_row, args.max_row if args.max_row >=0 else img_shape[0], 
                        args.min_col, args.max_col if args.max_col >=0 else img_shape[1],
                        args.tile_size, args.step, args.empty_pixels_threshold,
-                       args.verbose, args.single_process)
+                       args.verbose)
         

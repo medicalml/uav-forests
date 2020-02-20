@@ -13,6 +13,8 @@ import multiprocessing
 import copy
 import shutil
 
+#this script is executed parrallel automatically, if you want execute on only one core use --single-process 
+
 def geometry_to_pixel_geometry(geometry, transform):
     x, y = geometry.exterior.coords.xy
     x_pix, y_pix = rio.transform.rowcol(transform, x, y)
@@ -194,4 +196,4 @@ if __name__ == "__main__":
                        args.min_col, args.max_col if args.max_col >=0 else img_shape[1],
                        args.tile_size, args.step, args.empty_pixels_threshold,
                        args.verbose, args.single_process)
-        
+
