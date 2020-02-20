@@ -34,6 +34,7 @@ dependencies:
   - urllib3
   - yaml
   - nodejs
+  - tifffile
   - pip:
     - cython
     - git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI
