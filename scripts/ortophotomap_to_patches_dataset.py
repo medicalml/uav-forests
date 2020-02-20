@@ -19,7 +19,8 @@ def geometry_to_pixel_geometry(geometry, transform):
 
 def load_shapes_df(shapefile_path, transform):
     shapes_df = gpd.read_file(shapefile_path)
-    shapes_df["pixel_geometry"] = shapes_df["geometry"].apply(lambda g: geometry_to_pixel_geometry(g, transform))
+    shapes_df["geometry"] = shapes_df["geometry"].apply(lambda g: g if g.is_valid else g.buffer(0))
+    shapes_df["pixel_geometry"] = shapes_df["geometry"].apply(lambda g: geometry_to_pixel_geometry(g, transform))    
     shapes_df = shapes_df.set_geometry("pixel_geometry")
     shapes_df['pixel_bbox'] = shapes_df["pixel_geometry"].envelope
     shapes_df = shapes_df.merge(shapes_df["pixel_geometry"].bounds.astype(int), left_index=True, right_index=True)
@@ -99,6 +100,8 @@ if __name__ == "__main__":
     parser.add_argument("--max-row", type=int, default=-1, help="optional: max pixel row for sliding window")
     parser.add_argument("--min-col", type=int, default=0, help="optional: col offset for sliding window")
     parser.add_argument("--max-col", type=int, default=-1, help="optional: max pixel col for sliding window")
+    parser.add_argument("--convert-to-bgr", dest="convert_to_bgr", action="store_true", default=False, 
+                        help="whether to save images as BGR rather than RGB")
     parser.add_argument("--empty-pixels-threshold", type=float, default=0.5, 
                         help="threshold of max percentage of empty pixels on a tile to use it")
     parser.add_argument("--target-dir", required=True, help="directory to store dataset")

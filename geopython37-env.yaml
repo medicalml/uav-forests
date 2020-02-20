@@ -34,7 +34,9 @@ dependencies:
   - urllib3
   - yaml
   - nodejs
+  - imgaug
   - pip:
     - cython
     - git+https://github.com/cocodataset/cocoapi.git#subdirectory=PythonAPI
     - git+https://github.com/facebookresearch/detectron2.git
+    - imagecorruptions
