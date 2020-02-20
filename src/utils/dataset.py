@@ -1,13 +1,15 @@
 import os
+
 import cv2
 import pandas as pd
 import geopandas as gpd
 import numpy as np
 
+from sklearn.model_selection import train_test_split
+from fvcore.common.file_io import PathManager
+import tifffile
 from detectron2.structures import BoxMode
 from detectron2.data import DatasetCatalog, MetadataCatalog
-
-from sklearn.model_selection import train_test_split
 
 
 def split_train_val_test(samples, train_ratio, val_ratio, test_ratio=None):
@@ -74,3 +76,11 @@ def register_detectron2_datasets(name, images_dir, splits, min_bbox_area=200, li
                                                                  lim))
 
         MetadataCatalog.get(f"{name}_{d}").set(thing_classes=["SickTrees"])
+
+def tiff_image_reader(file_name, format=None):
+    with PathManager.open(file_name, "rb") as f:
+        image = tifffile.imread(f)
+        #there must be added some line of code if want to learn on other format than BGRN !!!!
+        image = np.asarray(image)
+        image = np.swapaxes(image, 0, 2)
+        return image
