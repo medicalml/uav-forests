@@ -8,6 +8,10 @@ tboard_logs/
 data
 data/*
 temp/*
+data_out/*
+
+.vscode
+.idea
 *.pkl
 *.hd5
 *.shp

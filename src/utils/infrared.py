@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def nir_to_ndvi(nir_img, red_channel_img):
 
     if np.issubdtype(red_channel_img.dtype, np.integer):
