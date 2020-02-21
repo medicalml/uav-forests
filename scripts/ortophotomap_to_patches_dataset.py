@@ -30,7 +30,7 @@ def load_shapes_df(shapefile_path, transform):
     return shapes_df
 
 
-def extract_tile(tiff_handler, nir_handler, shapes_df, row_offset, col_offset, tile_size):
+def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, nir_handler=None):
     base_window_polygon = shp.geometry.Polygon([[0,0], [0,tile_size], [tile_size,tile_size], [tile_size,0]])
     window_polygon = shp.affinity.translate(base_window_polygon, row_offset, col_offset)
     
@@ -43,17 +43,17 @@ def extract_tile(tiff_handler, nir_handler, shapes_df, row_offset, col_offset, t
     ndvi_tile = None
     if nir_handler is not None:
         [x_min, x_max], [y_min, y_max] = rio.transform.xy(tiff_handler.transform,
-                                                          [row_offset, row_offset+tile_size],
-                                                          [col_offset, col_offset+tile_size])
+                                                          [row_offset, row_offset + tile_size],
+                                                          [col_offset, col_offset + tile_size])
         nir_read_window = coordinates_to_window(nir_handler, x_min, y_min, x_max, y_max)
         nir_tile = nir_handler.read(1, window=nir_read_window, out_shape=(tile.shape[0], tile.shape[1]))
-        nir_alpha = np.ones(nir_tile.shape)*255
+        nir_alpha = np.ones(nir_tile.shape) * 255
         nir_alpha[nir_tile == -10000] = 0
         nir_tile[nir_tile == -10000] = 0
         ndvi_tile = np.zeros((nir_tile.shape[0], nir_tile.shape[1], 2))
-        ndvi_tile[:,:,0] = nir_to_ndvi(nir_tile, tile[:, :, 0])
-        ndvi_tile[:,:,0] = (ndvi_tile[:,:,0]+1)/2*255
-        ndvi_tile[:,:,1] = nir_alpha
+        ndvi_tile[:, :, 0] = nir_to_ndvi(nir_tile, tile[:, :, 0])
+        ndvi_tile[:, :, 0] = (ndvi_tile[:, :, 0] + 1) / 2 * 255
+        ndvi_tile[:, :, 1] = nir_alpha
 
     shapes = shapes_df[~shapes_df["pixel_geometry"].intersection(window_polygon).is_empty]
     result_shapes = []
@@ -86,19 +86,23 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
             for col in colrange:
                 tile, ndvi_tile, shapes = extract_tile(tiff_handler, nir_handler, shapes_df,
                                                        row, col, tile_size)
-
-                alpha = tile[:,:,3].astype(np.float32)/255
+                
+                alpha = tile[:, :, 3] / 255.0
+                is_rgb_mostly_filled = alpha.mean() > max_empty_pixels_threshold
+                is_ndvi_mostly_filled = True
                 if ndvi_tile is not None:
-                    ndvi_alpha = ndvi_tile[:,:,1].astype(np.float32)/255
-                    ndvi_alpha_mean = ndvi_alpha.mean()
-                else:
-                    ndvi_alpha_mean = 1
+                    ndvi_alpha = ndvi_tile[:, :, 1] / 255.0
+                    is_ndvi_mostly_filled = ndvi_alpha.mean() > max_empty_pixels_threshold
 
-                if len(shapes) > 0 or (alpha.mean() > max_empty_pixels_threshold and ndvi_alpha_mean > max_empty_pixels_threshold):
+                if len(shapes) > 0 or (is_rgb_mostly_filled and is_ndvi_mostly_filled):
                     if ndvi_tile is not None:
-                        tile[:,:,3] = ndvi_tile[:,:,0]
-                    cv2.imwrite(f"{target_dir}/patch_{index}.png", 
-                                cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA))
+                        tile[:,:,3] = ndvi_tile[:, :, 0]
+                        tile = cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA)
+                    else:
+                        tile = tile[:, :, :3]
+                        tile = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
+                        
+                    cv2.imwrite(f"{target_dir}/patch_{index}.png", tile)
 
                     annotations += [{"patch_number": index, **s} for s in shapes]
                     index += 1
