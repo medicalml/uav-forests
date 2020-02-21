@@ -74,7 +74,8 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
                    min_row, max_row, min_col, max_col, 
                    tile_size, step, 
                    max_empty_pixels_threshold=0.5,
-                   progressbar=False, nir_handler=None):
+                   progressbar=False, nir_handler=None, 
+                   convert_to_bgr=False):
     index = 0
     annotations = []
     rowrange = range(min_row, max_row + 1 - step, step)
@@ -97,10 +98,12 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
                 if len(shapes) > 0 or (is_rgb_mostly_filled and is_ndvi_mostly_filled):
                     if ndvi_tile is not None:
                         tile[:,:,3] = ndvi_tile[:, :, 0]
-                        tile = cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA)
+                        if convert_to_bgr:
+                            tile = cv2.cvtColor(tile, cv2.COLOR_RGBA2BGRA)
                     else:
                         tile = tile[:, :, :3]
-                        tile = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
+                        if convert_to_bgr:
+                            tile = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
                         
                     cv2.imwrite(f"{target_dir}/patch_{index}.png", tile)
 
@@ -162,6 +165,6 @@ if __name__ == "__main__":
                        args.min_row, args.max_row if args.max_row >=0 else img_shape[0], 
                        args.min_col, args.max_col if args.max_col >=0 else img_shape[1],
                        args.tile_size, args.step, args.empty_pixels_threshold,
-                       args.verbose, nir_handler=nir_handler)
+                       args.verbose, nir_handler=nir_handler, convert_to_bgr=args.convert_to_bgr)
         if nir_handler is not None:
             nir_handler.close()
