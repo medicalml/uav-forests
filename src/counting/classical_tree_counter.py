@@ -1,7 +1,3 @@
-"""
-Example usage of Tree Counter class
-"""
-
 import os
 
 import cv2
@@ -15,73 +11,24 @@ from src.orthophotomap.forest_iterator import ForestIterator
 from src.orthophotomap.forest_segmentation import ForestSegmentation
 
 
-def show(img):
-    cv2.imshow("img", img)
-    cv2.waitKey()
-    cv2.destroyAllWindows()
-
-
 class TreeCounter:
-
-    def __init__(self, *args,
-                 return_locations: bool = False,
-                 **kwargs, ):
-        '''
-        Any required arguments for the algorithm
-        that stay unchanged for every run
-        on every forest part, and any required
-        initialisation.
-        '''
-        self.params = self._get_blob_params()
-        self.return_locations = return_locations
-
-    def _get_blob_params(self):
-        params = cv2.SimpleBlobDetector_Params()
-
-        # Change thresholds
-        params.minThreshold = 0
-        params.maxThreshold = 2000
-
-        # Filter by Area.
-        params.filterByArea = True
-        params.minArea = 1
-        params.maxArea = 40
-
-        # Filter by Circularity
-        # params.filterByCircularity = True
-        # params.minCircularity = 0.0
-
-        # Filter by Convexity
-        # params.filterByConvexity = True
-        # params.minConvexity = 0.0
-
-        # Filter by Inertia
-        # params.filterByInertia = True
-        # params.minInertiaRatio = 0.01
-
-        return params
-
-    def _detect_blobs(self, img, params=None):
-        if cv2.__version__.startswith('2.'):
-            detector = cv2.SimpleBlobDetector(params)
-        else:
-            detector = cv2.SimpleBlobDetector_create(params)
-
-        keypoints = detector.detect(img)
-
-        return keypoints
+    def __init__(self, mean_rate=0.75, contrast=128, opening_size=2, threshold=36):
+        self.mean_rate = mean_rate
+        self.contrast = contrast
+        self.opening = (opening_size, opening_size)
+        self.threshold = threshold
 
     def _preprocess_forest_img(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         mean = np.mean(gray)
-        rate = mean/0.75
-        contrast = 128
-        print(rate)
+        rate = mean/self.mean_rate
+        contrast = self.contrast
+        # print(rate)
         l_channel = self._apply_brightness_contrast(gray, int(rate), int(contrast))
         # 48, 128
         ret, mask_r = cv2.threshold(l_channel, 140, 255, cv2.THRESH_BINARY)
 
-        kernel = np.ones((2, 2), np.uint8)
+        kernel = np.ones(self.opening, np.uint8)
         mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_OPEN, kernel)
 
         mask_r = np.uint8(mask_r)
@@ -120,31 +67,14 @@ class TreeCounter:
         assert rgb_image.shape[:2] == forest_mask.shape, \
             "Forest mask should have the same height and width as RGB"
 
-        count = 0
-        trees_points = []
-        all_key_points = []
-
         masked_rgb = cv2.bitwise_and(rgb_image, rgb_image, mask=forest_mask)
-
-
-
         masked_rgb = self._preprocess_forest_img(masked_rgb)
 
-        # show(masked_rgb)
-
-        # masked_rgb = cv2.bitwise_not(masked_rgb)
-
-        # keypoints = self._detect_blobs(img=masked_rgb, params=self.params)
         labels, count = label(masked_rgb)
         indices_unique, counts_indices = np.unique(labels, return_counts=True)
         centers = center_of_mass(np.ones(labels.shape), labels,
-                                 [indices_unique[i] for i in range(len(indices_unique)) if counts_indices[i] > 36])
-        # centers = center_of_mass(np.ones(labels.shape), labels, [i for i in range(count)])
-        # all_key_points += keypoints
-        # trees_points += [k.pt for k in keypoints]
-        # count += len(trees_points)
-        # print(centers)
-        return {"trees": centers, "count": count, "keypoints": all_key_points, "mask": masked_rgb}
+                                 [indices_unique[i] for i in range(len(indices_unique)) if counts_indices[i] > self.threshold])
+        return {"trees": centers, "count": count, "mask": masked_rgb}
 
 
 if __name__ == '__main__':

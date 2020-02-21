@@ -18,7 +18,7 @@ class ForestIterator:
                  alpha_channel=False, channels_first=True):
         '''
         :param rgb_tif_path: Path to the RGB.tif
-        :param forest_shp_path: Path to the shapefile with forests .shp
+        :param forest_shp_path: Path to the shapefile with forests .shp. Need to have "id_ob" column in the properties
         :param nir_tif_path:  Path to the NIR.tif
         :param alpha_channel: If alpha channel is in the rgb
         :param channels_first:

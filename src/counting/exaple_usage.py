@@ -12,6 +12,8 @@ from src.counting.classical_tree_counter import TreeCounter
 from src.orthophotomap.forest_segmentation import ForestSegmentation
 from src.counting.classical_tree_counter import show
 
+#FILE JUST FOR TESTING
+
 # hyperparameters
 DOT_SIZE = 3
 DOT_COLOR = [0, 0, 255]
