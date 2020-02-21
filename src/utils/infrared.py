@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def nir_to_ndvi(nir_img, red_channel_img, tol=1e-8):
+def nir_to_ndvi(nir_img, red_channel_img, eps=1e-8):
 
     if np.issubdtype(red_channel_img.dtype, np.integer):
         norm_factor = 255
@@ -11,7 +11,7 @@ def nir_to_ndvi(nir_img, red_channel_img, tol=1e-8):
         norm_factor = red_channel_img.max()
 
     red_img_norm = red_channel_img / norm_factor
-    ndvi = (nir_img - red_img_norm) / (red_img_norm + nir_img+tol)
+    ndvi = (nir_img - red_img_norm) / (red_img_norm + nir_img + eps)
     ndvi = (ndvi + 1) / 2
     ndvi = np.float32(ndvi)
     return ndvi
