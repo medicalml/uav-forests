@@ -35,7 +35,10 @@ def extract_tile(tiff_handler, nir_handler, shapes_df, row_offset, col_offset, t
     window_polygon = shp.affinity.translate(base_window_polygon, row_offset, col_offset)
     
     read_window =rio.windows.Window(col_offset, row_offset, tile_size, tile_size)
+    bckg = np.zeros((tile_size, tile_size, 4), dtype=np.uint8)
     tile = tiff_handler.read(window=read_window).transpose(1,2,0).copy()
+    bckg[:tile.shape[0], :tile.shape[1], :] = tile
+    tile = bckg
 
     ndvi_tile = None
     if nir_handler is not None:
@@ -49,9 +52,6 @@ def extract_tile(tiff_handler, nir_handler, shapes_df, row_offset, col_offset, t
         nir_tile[nir_tile == -10000] = 0
         ndvi_tile = np.zeros((nir_tile.shape[0], nir_tile.shape[1], 2))
         ndvi_tile[:,:,0] = nir_to_ndvi(nir_tile, tile[:, :, 0])
-        print("NIR: {} in [{}, {}], RGB: {} in [{}, {}], NDVI: [{}, {}]".format(nir_tile.shape,np.min(nir_tile), np.max(nir_tile),
-                                                                                tile.shape, np.min(tile[:,:,0]), np.max(tile[:,:,0]),
-                                                                                np.min(ndvi_tile[:,:,0]), np.max(ndvi_tile[:,:,0])))
         ndvi_tile[:,:,0] = (ndvi_tile[:,:,0]+1)/2*255
         ndvi_tile[:,:,1] = nir_alpha
 
