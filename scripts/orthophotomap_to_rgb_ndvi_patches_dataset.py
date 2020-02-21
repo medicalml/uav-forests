@@ -17,9 +17,10 @@ import warnings
 warnings.filterwarnings('error')
 import sys
 from PIL import Image
-#WORKS ONLY IN SINGLE PROCESS MODE
+
 sys.path.insert(0, '/home/h/uav-forests')
 from src.utils.infrared import nir_to_ndvi
+from src.utils.coordinates_converters import coordinates_to_window
 
 def geometry_to_pixel_geometry(geometry, transform):
     x, y = geometry.exterior.coords.xy
@@ -96,46 +97,55 @@ def extract_ir_tile(ir_handler, row_offset, col_offset, rgb_tile_size, transform
 
     return tile
     
-def write(colrange, row_range, tiff_handler, ir, shapes_df,  tile_size, max_empty_pixels_threshold, target_dir):
+def write(colrange, row_range, rgb_tif_handler, nir_tif_handler, shapes_df,  tile_size, max_empty_pixels_threshold, target_dir):
     annotations = []
     for row_index, row in tqdm.tqdm(enumerate(row_range), total=len(row_range)):
         for col_nr, col in enumerate(colrange):
             index = row_index*len(colrange)+col_nr
             
-            tile_rgb, shapes_rgb = extract_tile(tiff_handler, shapes_df, row, col, tile_size)
-            
-            tile_ir = extract_ir_tile(ir, row, col, tile_size, tiff_handler.transform)
-            # -10000 here 
-            if tile_ir is None or tile_ir.size <= 0 or tile_ir.mean() < -100 or tile_rgb is None:
-                continue
-            #print(tile_ir.shape)
+            tile_rgb, shapes_rgb = extract_tile(rgb_tif_handler, shapes_df, row, col, tile_size)
             alpha = tile_rgb[:,:,3].astype(np.float32)/255
-            tile_rgb = cv2.cvtColor(tile_rgb, cv2.COLOR_RGBA2BGRA)
+            x_min, y_min = rio.transform.xy(rgb_tif_handler.transform, row, col)
+            x_max, y_max = rio.transform.xy(rgb_tif_handler.transform, row+tile_size, col+tile_size)
             
-            tile_ir = cv2.resize(tile_ir, (tile_rgb.shape[:2]))
-            tile_ndvi = nir_to_ndvi(tile_ir, tile_rgb[:,:,2])
-            tile_ndvi += 1.0
-            tile_ndvi = tile_ndvi * 255.0/2.0
-            tile_ndvi = np.clip(tile_ndvi, 0, 255)
-        
+            new_transform = copy.deepcopy(rgb_tif_handler.transform)
+            #new_transform[0] = x_min
+            #new_transform[3] = y_min
             
+            nir_win = coordinates_to_window(nir_tif_handler,
+                                        x_min, y_min, x_max, y_max)
             
-            tile_ndvi = np.expand_dims(tile_ndvi, -1)
+            tile_r = tile_rgb[:,:,0]
+            try:
+                nir_img = nir_tif_handler.read(1, window=nir_win,
+                                            out_shape=tile_r.shape)
+            except rasterio.errors.RasterioIOError as e:
+                print("rio error")
+                continue
+            #print("min nir", np.min(nir_img), "max nir_img", np.max(nir_img))
+            ndvi = nir_to_ndvi(nir_img, tile_r)
+            if not isinstance(ndvi, (np.ndarray, np.array, np.generic)):
+                print("nie instancja")
+                continue
+            if ndvi.size == 0:
+                print("zero size")
+                continue
+            ndvi = np.clip(ndvi, -1, 1)
             
-            tile_rgb = tile_rgb.astype(np.uint8)
-            tile_ndvi = tile_ndvi.astype(np.uint8)
-            tile_merged = np.append(tile_rgb, tile_ndvi, axis=-1)
-            
-            imb = Image.fromarray(tile_merged[:,:,0]) 
-            img = Image.fromarray(tile_merged[:,:,1])
-            imr = Image.fromarray(tile_merged[:,:,2]) 
-            imn = Image.fromarray(tile_merged[:,:,4]) 
+            tile_rgb = tile_rgb.astype(np.float32)
             
             if len(shapes_rgb) > 0 or alpha.mean() > max_empty_pixels_threshold:
-                imb.save(f"{target_dir}/patch_{index}.tif", format="tiff", append_images=[img, imr, imn], save_all=True, metadata={'axes': 'BGRN'})
+                print("zapisuje")
+                #imb.save(f"{target_dir}/patch_{index}.tif", format="tiff", append_images=[img, imr, imn], save_all=True, quality=100, metadata={'axes': 'BGRN'})
+                with rasterio.open(f"{target_dir}/patch_{index}.tif",'w',driver='GTiff',height=tile_rgb.shape[0],width=tile_rgb.shape[1],count=1,dtype=ndvi.dtype,crs='+proj=latlong',
+                 transform=new_transform) as dst:
+                    #dst.write(tile_rgb[:,:,0], 4)
+                    #dst.write(tile_rgb[:,:,1], 2)
+                    #dst.write(tile_rgb[:,:,2], 3)
+                    dst.write(ndvi, 1)
                 annotations += [{"patch_number": index, **s} for s in shapes_rgb]
-
-            del tile_ir
+            else:
+                print("brak shapes albo obszar nieznany")
             del tile_rgb
            
        
@@ -198,26 +208,24 @@ if __name__ == "__main__":
                         help="whether to be verbose")
     
     args = parser.parse_args()
-    print("start - opening ir tiff he")
-    print(args.nirtiff)
-    ir = rio.open(args.nirtiff)
+       
     with rio.open(args.geotiff) as geotiff:
-        print("creating out image which will contain ndvi")
-        #image_out = geotiff
-        if not os.path.exists(args.target_dir):
-            os.makedirs(args.target_dir)
-        else: 
-            shutil.rmtree(args.target_dir)
-            os.makedirs(args.target_dir)
-        print("ustanowiono foldery")
-        img_shape = geotiff.shape
-        print("ładowanie shapeow")
-        shapes_df = load_shapes_df(args.shapefile, geotiff.transform)
-        print("SHAPE", img_shape)
-        print(ir.shape)
-        rolling_window(geotiff, ir, shapes_df, args.target_dir,
-                       args.min_row, args.max_row if args.max_row >=0 else img_shape[0], 
-                       args.min_col, args.max_col if args.max_col >=0 else img_shape[1],
-                       args.tile_size, args.step, args.empty_pixels_threshold,
-                       args.verbose)
+        with rio.open(args.nirtiff) as nirtiff:
+            print("creating out image which will contain ndvi")
+            #image_out = geotiff
+            if not os.path.exists(args.target_dir):
+                os.makedirs(args.target_dir)
+            else: 
+                shutil.rmtree(args.target_dir)
+                os.makedirs(args.target_dir)
+            print("ustanowiono foldery")
+            img_shape = geotiff.shape
+            print("ładowanie shapeow")
+            shapes_df = load_shapes_df(args.shapefile, geotiff.transform)
+            print("SHAPE", img_shape)
+            rolling_window(geotiff, nirtiff, shapes_df, args.target_dir,
+                        args.min_row, args.max_row if args.max_row >=0 else img_shape[0], 
+                        args.min_col, args.max_col if args.max_col >=0 else img_shape[1],
+                        args.tile_size, args.step, args.empty_pixels_threshold,
+                        args.verbose)
         
