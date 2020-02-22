@@ -85,8 +85,8 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
                    disable=not progressbar) as pbar:
         for row in rowrange:
             for col in colrange:
-                tile, ndvi_tile, shapes = extract_tile(tiff_handler, nir_handler, shapes_df,
-                                                       row, col, tile_size)
+                tile, ndvi_tile, shapes = extract_tile(tiff_handler, shapes_df,
+                                                       row, col, tile_size, nir_handler=nir_handler)
                 
                 alpha = tile[:, :, 3] / 255.0
                 is_rgb_mostly_filled = alpha.mean() > max_empty_pixels_threshold
