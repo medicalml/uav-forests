@@ -46,14 +46,19 @@ def extract_tile(tiff_handler, shapes_df, row_offset, col_offset, tile_size, nir
                                                           [row_offset, row_offset + tile_size],
                                                           [col_offset, col_offset + tile_size])
         nir_read_window = coordinates_to_window(nir_handler, x_min, y_min, x_max, y_max)
-        nir_tile = nir_handler.read(1, window=nir_read_window, out_shape=(tile.shape[0], tile.shape[1]))
-        nir_alpha = np.ones(nir_tile.shape) * 255
-        nir_alpha[nir_tile == -10000] = 0
-        nir_tile[nir_tile == -10000] = 0
-        ndvi_tile = np.zeros((nir_tile.shape[0], nir_tile.shape[1], 2))
-        ndvi_tile[:, :, 0] = nir_to_ndvi(nir_tile, tile[:, :, 0])
-        ndvi_tile[:, :, 0] = (ndvi_tile[:, :, 0] + 1) / 2 * 255
-        ndvi_tile[:, :, 1] = nir_alpha
+        col_off, row_off, width, height = nir_read_window.flatten()
+
+        if col_off + width < nir_handler.shape[1] and row_off + height < nir_handler.shape[0]:
+            nir_tile = nir_handler.read(1, window=nir_read_window, out_shape=(tile.shape[0], tile.shape[1]))
+            nir_alpha = np.ones(nir_tile.shape) * 255
+            nir_alpha[nir_tile == -10000] = 0
+            nir_tile[nir_tile == -10000] = 0
+            ndvi_tile = np.zeros((nir_tile.shape[0], nir_tile.shape[1], 2))
+            ndvi_tile[:, :, 0] = nir_to_ndvi(nir_tile, tile[:, :, 0])
+            ndvi_tile[:, :, 0] = (ndvi_tile[:, :, 0] + 1) / 2 * 255
+            ndvi_tile[:, :, 1] = nir_alpha
+        else:
+            ndvi_tile = np.zeros((tile.shape[0], tile.shape[1], 2))
 
     shapes = shapes_df[~shapes_df["pixel_geometry"].intersection(window_polygon).is_empty]
     result_shapes = []
