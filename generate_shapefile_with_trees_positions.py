@@ -30,7 +30,10 @@ if __name__ == '__main__':
     parser.add_argument("--target_dir", required=True, help="directory to store output shape with tree positions")
 
     args = parser.parse_args()
-    # iterator = 0
+    iterator = 0
+    if not os.path.exists(args.target_dir):
+        os.mkdir(args.target_dir)
+
     with rio.open(args.geotiff) as geotiff:
         shape_path = args.shapefile
         schema = {
@@ -41,36 +44,37 @@ if __name__ == '__main__':
         with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w', 'ESRI Shapefile', schema) as output_shapefile:
             # output_shapefile = fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w', 'ESRI Shapefile', schema)
             tree_couter = TreeCounter()
-            it = ForestIterator(args.geotiff, shape_path)
+            it = ForestIterator(args.geotiff, shape_path, channels_first=False)
             masking_tool = ForestSegmentation()
             edit_initial_shape = []
 
             for patch in tqdm(it):
                 rgb = patch['rgb']
-                rgb = np.moveaxis(rgb, 0, -1)
+                # rgb = np.moveaxis(rgb, 0, -1)
                 forest_img = rgb
 
                 mask = masking_tool.mask(forest_img)
                 counting_dict = tree_couter.count(forest_img, mask)
                 trees = counting_dict["trees"]
-                number_of_trees = len(trees)
+                number_of_trees = counting_dict["count"]
 
                 edit_initial_shape.append((patch["description"]["id_ob"], number_of_trees))
 
-                for idx, (y, x) in enumerate(trees):
-                    y_max, x_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
-                    y += y_max
-                    x += x_min
-                    point = Point(rio.transform.xy(it.rgb_tif_handler.transform, y, x))
+                for idx, (row, col) in enumerate(trees):
+                    row_max, col_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
+                    row += row_max
+                    col += col_min
+                    point = Point(rio.transform.xy(it.rgb_tif_handler.transform, row, col))
                     output_shapefile.write({
                         'geometry': mapping(point),
                         'properties': {'id': idx},
                     })
 
+                if iterator > 3:
+                    break
+                iterator += 1
+
             path, filename = os.path.split(shape_path)
             filename, extenstion = os.path.splitext(filename)
             save_path = os.path.join(args.target_dir, filename+"_updated"+extenstion)
-            update_shapefile(shape_path, save_path, edit_initial_shape, ["drzewa"])
-                # if iterator > 6:
-                #     break
-                # iterator += 1
+            update_shapefile(shape_path, save_path, edit_initial_shape, ["drzewa"], {"drzewa": "int32"})

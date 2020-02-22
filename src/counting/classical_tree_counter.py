@@ -44,4 +44,5 @@ class TreeCounter:
         centers = center_of_mass(np.ones(labels.shape), labels,
                                  [indices_unique[i] for i in range(len(indices_unique)) if
                                   counts_indices[i] > self.threshold])
+        count = len(centers)
         return {"trees": centers, "count": count, "mask": masked_rgb}

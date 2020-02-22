@@ -92,8 +92,8 @@ class ForestSegmentation:
             "RGB image array should be 3-dimensional"
 
         img = self.equalize_histogram(rgb_image)
-        result = self.bilateral_shadow_detection(img)
-        mask_r = self.create_shadow_mask(result)
+        detected_shadows = self.bilateral_shadow_detection(img)
+        mask_r = self.create_shadow_mask(detected_shadows)
         img_new = cv2.bitwise_and(rgb_image, rgb_image, mask=mask_r)
         mask_r_new = self.filter_entropy_by_color(img_new)
 
