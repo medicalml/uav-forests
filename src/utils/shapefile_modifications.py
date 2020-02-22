@@ -3,10 +3,11 @@ import os
 import geopandas as gpd
 
 
-def update_shapefile(shape_path, update_list, new_cols):
+def update_shapefile(shape_path, save_path, update_list, new_cols):
     '''
     Update shapefile with new information
     :param shape_path: path to the modified shapefile
+    :param save_path: path to save the shapefile
     :param update_list: List of structure [(id_ob, col1, col2,...)]
     :param new_cols: List of added columns names
     :return: Nothing
@@ -21,6 +22,4 @@ def update_shapefile(shape_path, update_list, new_cols):
     new_df = gpd.GeoDataFrame(update_list, columns=["id_ob"] + new_cols)
     new_df = new_df.set_index("id_ob")
     gdf.update(new_df)
-    path, filename = os.path.split(shape_path)
-    filename, extenstion = os.path.splitext(filename)
-    gdf.to_file(os.path.join(path, filename + "_updated" + extenstion))
+    gdf.to_file(save_path)

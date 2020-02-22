@@ -67,7 +67,10 @@ if __name__ == '__main__':
                         'properties': {'id': idx},
                     })
 
-                update_shapefile(shape_path, edit_initial_shape, ["drzewa"])
+            path, filename = os.path.split(shape_path)
+            filename, extenstion = os.path.splitext(filename)
+            save_path = os.path.join(args.target_dir, filename+"_updated"+extenstion)
+            update_shapefile(shape_path, save_path, edit_initial_shape, ["drzewa"])
                 # if iterator > 6:
                 #     break
                 # iterator += 1
