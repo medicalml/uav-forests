@@ -30,7 +30,7 @@ if __name__ == '__main__':
     parser.add_argument("--target_dir", required=True, help="directory to store output shape with tree positions")
 
     args = parser.parse_args()
-    iterator = 0
+    # iterator = 0
     if not os.path.exists(args.target_dir):
         os.mkdir(args.target_dir)
 
@@ -70,9 +70,9 @@ if __name__ == '__main__':
                         'properties': {'id': idx},
                     })
 
-                if iterator > 3:
-                    break
-                iterator += 1
+                # if iterator > 3:
+                #     break
+                # iterator += 1
 
             path, filename = os.path.split(shape_path)
             filename, extenstion = os.path.splitext(filename)
