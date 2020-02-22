@@ -7,7 +7,7 @@ import numpy as np
 
 from sklearn.model_selection import train_test_split
 from fvcore.common.file_io import PathManager
-import tifffile
+
 from detectron2.structures import BoxMode
 from detectron2.data import DatasetCatalog, MetadataCatalog
 
@@ -38,7 +38,7 @@ def _convert_single_bbox(bbox):
 
 def _convert_single_patch(patch_df, images_dir, image_shape=(256, 256)):
     patch_number = patch_df["patch_number"].iloc[0]
-    file_path = os.path.join(images_dir, f"patch_{patch_number}.tif")
+    file_path = os.path.join(images_dir, f"patch_{patch_number}.png")
     image_shape = image_shape or cv2.imread(file_path).shape[:2]
     return {"file_name": file_path,
             "image_id": int(patch_number),
@@ -77,10 +77,7 @@ def register_detectron2_datasets(name, images_dir, splits, min_bbox_area=200, li
 
         MetadataCatalog.get(f"{name}_{d}").set(thing_classes=["SickTrees"])
 
-def tiff_image_reader(file_name, format=None):
+def image_reader(file_name, format=None):
     with PathManager.open(file_name, "rb") as f:
-        image = tifffile.imread(f)
-        #there must be added some line of code if want to learn on other format than BGRN !!!!
-        image = np.asarray(image)
-        image = np.swapaxes(image, 0, 2)
+        image = cv2.imread(f.name, cv2.IMREAD_UNCHANGED)
         return image

@@ -6,7 +6,7 @@ from detectron2.data import transforms as T
 from detectron2.data import detection_utils as utils
 from detectron2.data import DatasetMapper
 
-from .dataset import tiff_image_reader
+from .dataset import image_reader
 
 class TreesDatasetMapper(DatasetMapper):
     def __init__(self, cfg, is_train=True):
@@ -22,7 +22,7 @@ class TreesDatasetMapper(DatasetMapper):
         """
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
         # USER: Write your own image loading if it's not from a file
-        image = tiff_image_reader(dataset_dict["file_name"], format=self.img_format)
+        image = image_reader(dataset_dict["file_name"], format=self.img_format)
         utils.check_image_size(dataset_dict, image)
 
         if "annotations" not in dataset_dict:
