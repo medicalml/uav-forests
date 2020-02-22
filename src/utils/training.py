@@ -93,12 +93,12 @@ class Augmenter:
         ], rgb_image.shape)
 
         hmap_on_image = None
-        if ndvi_image:
-            hmap_on_image = HeatmapsOnImage(ndvi_image, rgb_image.shape,
+        if ndvi_image is not None:
+            hmap_on_image = HeatmapsOnImage(ndvi_image.astype(np.float32), rgb_image.shape,
                                             min_value=ndvi_image.min(),
                                             max_value=ndvi_image.max())
         smap_on_image = None
-        if forest_mask:
+        if forest_mask is not None:
             smap_on_image = SegmentationMapsOnImage(forest_mask,
                                                     rgb_image.shape)
 
@@ -110,7 +110,7 @@ class Augmenter:
 
         return {"rgb_image": aug_img,
                 "mask": aug_smap and aug_smap.arr.squeeze(),
-                "ndvi": aug_hmap and aug_hmap.to_uint8().squeeze(),
+                "ndvi": aug_hmap and aug_hmap.get_arr().squeeze(),
                 "annotations": [{"bbox": [bb.x1_int, bb.y1_int, bb.x2_int, bb.y2_int],
                                  "bbox_mode": BoxMode.XYXY_ABS,
                                  "category_id": bb.label}
@@ -125,20 +125,24 @@ class Augmenter:
 
 class SickTreesDatasetMapper:
 
-    def __init__(self, cfg: CfgNode, is_train: bool, augmenter: Augmenter = None):
+    def __init__(self, cfg: CfgNode, is_train: bool,
+                 nb_channels: int = 4,
+                 augmenter: Augmenter = None):
         self.cfg = cfg
         self.is_train = is_train
+        self.nb_channels = nb_channels
         self.augmenter = augmenter
 
     def __call__(self, data_dict):
         data_dict = copy.deepcopy(data_dict)
 
-        image = cv2.imread(data_dict["file_name"])
-        if image.shape[2] == 4:
-            conversion = cv2.COLOR_BGRA2RGBA
-        else:
-            conversion = cv2.COLOR_BGR2RGB
-        image = cv2.cvtColor(image, conversion)
+        image = cv2.imread(data_dict["file_name"], cv2.IMREAD_UNCHANGED)
+        image = image[:, :, :self.nb_channels]
+        # if image.shape[2] == 4:
+        #     conversion = cv2.COLOR_BGRA2RGBA
+        # else:
+        #     conversion = cv2.COLOR_BGR2RGB
+        # image = cv2.cvtColor(image, conversion)
 
         data_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1)
                                              .astype("float32"))
@@ -157,7 +161,7 @@ class SickTreesDatasetMapper:
                                        ndvi_image)
 
             data_dict["annotations"] = augmented["annotations"]
-            if augmented['ndvi']:
+            if augmented['ndvi'] is not None:
                 image = np.dstack([augmented["rgb_image"], augmented["ndvi"]])
             else:
                 image = augmented["rgb_image"]
@@ -179,13 +183,38 @@ class SickTreesAugmentedTrainer(DefaultTrainer):
     def build_test_loader(cls, cfg, dataset_name):
         return build_detection_test_loader(cfg, dataset_name,
                                            mapper=SickTreesDatasetMapper(cfg, is_train=False,
+                                                                         nb_channels=3,
                                                                          augmenter=None))
 
     @classmethod
     def build_train_loader(cls, cfg):
         return build_detection_train_loader(cfg, mapper=SickTreesDatasetMapper(cfg, is_train=True,
+                                                                               nb_channels=4,
                                                                                augmenter=Augmenter()))
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+        return COCOEvaluator(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
+
+
+class SickTreesNDVIAugmentedTrainer(DefaultTrainer):
+
+    @classmethod
+    def build_test_loader(cls, cfg, dataset_name):
+        return build_detection_test_loader(cfg, dataset_name,
+                                           mapper=SickTreesDatasetMapper(cfg, is_train=False,
+                                                                         nb_channels=4,
+                                                                         augmenter=None))
+
+    @classmethod
+    def build_train_loader(cls, cfg):
+        return build_detection_train_loader(cfg, mapper=SickTreesDatasetMapper(cfg, is_train=True,
+                                                                               nb_channels=4,
+                                                                               augmenter=Augmenter()))
+
+    @classmethod
+    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+        if output_folder is None:
+            os.makedirs(cfg.OUTPUT_DIR+f"/eval/{dataset_name}", exist_ok=True)
+
         return COCOEvaluator(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
