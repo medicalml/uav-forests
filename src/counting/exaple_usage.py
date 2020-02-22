@@ -1,3 +1,6 @@
+'''
+File for scoring the tree counter. NOT FOR USE, ONLY TESTS.
+'''
 import os
 import random
 
@@ -10,9 +13,7 @@ from pykdtree.kdtree import KDTree
 
 from src.counting.classical_tree_counter import TreeCounter
 from src.orthophotomap.forest_segmentation import ForestSegmentation
-from src.counting.classical_tree_counter import show
 
-#FILE JUST FOR TESTING
 
 # hyperparameters
 DOT_SIZE = 3
