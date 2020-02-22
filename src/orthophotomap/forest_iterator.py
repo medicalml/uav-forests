@@ -77,7 +77,9 @@ class ForestIterator:
         win = coordinates_to_window(self.rgb_tif_handler,
                                     x.min(), y.min(), x.max(), y.max())
 
-        bands = [1, 2, 3] + ([4] if self.alpha_channel else [])
+        bands = [1, 2, 3]
+        if self.alpha_channel:
+            bands.append(4)
 
         img = rio.plot.reshape_as_image(
             self.rgb_tif_handler.read(bands, window=win))
@@ -91,11 +93,22 @@ class ForestIterator:
         if self.channels_first:
             masked = rio.plot.reshape_as_raster(masked)
 
-        result = {'rgb': masked,
-                  'description': single_shape['properties'],
-                  'x_min' : x.min(),
-                  'y_max' : y.max()
-                  }
+        row_min, col_min = rio.transform.rowcol(
+            self.rgb_tif_handler, x.min(), y.max())
+
+        row_max, col_max = rio.transform.rowcol(
+            self.rgb_tif_handler, x.max(), y.min())
+
+        result = {"rgb": masked,
+                  "description": single_shape['properties'],
+                  "x_min": x.min(),
+                  "x_max": x.max(),
+                  "y_min": y.min(),
+                  "y_max": y.max(),
+                  "row_min": row_min,
+                  "row_max": row_max,
+                  "col_min": col_min,
+                  "col_max": col_max}
 
         if self.nir_path is not None:
             ndvi = self.create_ndvi(x.min(), y.min(), x.max(), y.max())
