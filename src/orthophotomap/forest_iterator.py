@@ -94,10 +94,10 @@ class ForestIterator:
             masked = rio.plot.reshape_as_raster(masked)
 
         row_min, col_min = rio.transform.rowcol(
-            self.rgb_tif_handler, x.min(), y.max())
+            self.rgb_tif_handler.transform, x.min(), y.max())
 
         row_max, col_max = rio.transform.rowcol(
-            self.rgb_tif_handler, x.max(), y.min())
+            self.rgb_tif_handler.transform, x.max(), y.min())
 
         result = {"rgb": masked,
                   "description": single_shape['properties'],
