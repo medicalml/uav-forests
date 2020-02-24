@@ -78,11 +78,14 @@ class ForestIterator:
                                     x.min(), y.min(), x.max(), y.max())
 
         bands = [1, 2, 3]
-        if self.alpha_channel:
-            bands.append(4)
+
+        # if self.alpha_channel:
+        #     bands.append(4)
 
         img = rio.plot.reshape_as_image(
             self.rgb_tif_handler.read(bands, window=win))
+
+        alpha_channel = self.rgb_tif_handler.read([4], window=win)
 
         mask = self.build_mask(img, shp,
                                col_offset=win.col_off,
@@ -90,17 +93,20 @@ class ForestIterator:
 
         masked = cv2.bitwise_and(img, img, mask=mask)
 
+        masked_alpha_channel = cv2.bitwise_and(alpha_channel, alpha_channel, mask=mask)
+
         if self.channels_first:
             masked = rio.plot.reshape_as_raster(masked)
 
         row_min, col_min = rio.transform.rowcol(
-            self.rgb_tif_handler, x.min(), y.max())
+            self.rgb_tif_handler.transform, x.min(), y.max())
 
         row_max, col_max = rio.transform.rowcol(
-            self.rgb_tif_handler, x.max(), y.min())
+            self.rgb_tif_handler.transform, x.max(), y.min())
 
         result = {"rgb": masked,
                   "description": single_shape['properties'],
+                  "alpha_channel": masked_alpha_channel,
                   "x_min": x.min(),
                   "x_max": x.max(),
                   "y_min": y.min(),
