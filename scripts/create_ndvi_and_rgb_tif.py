@@ -76,4 +76,4 @@ with rio.open('output/rgb.tif', 'w', **profile) as dst:
     print("saving last rgb channel")
     dst.write(rgb_output[:,:,2].astype(rio.uint8), 3)
 print("done")
-#python test/create_ndvi_and_rgb_tif.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --nir_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/NIR_Swiebodzin.tif --forest_shp_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
+#python scripts/create_ndvi_and_rgb_tif.py --rgb_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/RGB_Swiebodzin.tif --nir_tif_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/NIR_Swiebodzin.tif --forest_shp_path=/home/h/ML\ dane\ dla\ kola/Swiebodzin/obszar_swiebodzin.shp
