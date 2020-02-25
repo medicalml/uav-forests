@@ -24,35 +24,10 @@ from detectron2.config import CfgNode
 
 from src.utils.dataset import split_train_val_test
 from src.utils.augmenter import Augmenter
+from src.utils.custom_coco_evaluator import CustomCOCOEvaluator
+
 
 from typing import List, Dict
-
-
-def get_splits_for_multipart_dataset(base_path, train_val_maps, test_maps):
-
-    if os.path.exists(f"{base_path}/train_val_test_splits.pkl"):
-        print("Reusing existing splits_file")
-        with open(f"{base_path}/train_val_test_splits.pkl", "rb") as f:
-            splits = pickle.load(f)
-    else:
-        splits = {'train': {}, 'val': {}, 'test': {}}
-        for part in train_val_maps:
-            samples = pd.read_pickle(
-                f"{base_path}/{part}/annotation.pkl")["patch_number"].unique()
-            part_splits = split_train_val_test(samples, 0.8, 0.2, 0)
-            for d in part_splits:
-                splits[d][part] = part_splits[d]
-
-        for part in test_maps:
-            samples = pd.read_pickle(
-                f"{base_path}/{part}/annotation.pkl")["patch_number"].unique()
-            part_splits = {'train': [], 'val': [], 'test': samples}
-            for d in part_splits:
-                splits[d][part] = part_splits[d]
-
-        with open(f"{base_path}/train_val_test_splits.pkl", "wb") as f:
-            pickle.dump(splits, f)
-    return splits
 
 
 class SickTreesDatasetMapper:
@@ -115,6 +90,33 @@ class SickTreesDatasetMapper:
         return data_dict
 
 
+class SickTreesCFGTrainer(DefaultTrainer):
+
+    @classmethod
+    def build_test_loader(cls, cfg, dataset_name):
+        return build_detection_test_loader(cfg, dataset_name,
+                                           mapper=SickTreesDatasetMapper(cfg, is_train=False,
+                                                                         nb_channels=3,
+                                                                         augmenter=None))
+
+    @classmethod
+    def build_train_loader(cls, cfg):
+        if cfg.AUGMENTATION == "ON":
+            augmenter = Augmenter()
+        else:
+            augmenter = None
+        return build_detection_train_loader(cfg, mapper=SickTreesDatasetMapper(cfg, is_train=True,
+                                                                               nb_channels=3,
+                                                                               augmenter=augmenter))
+
+    @classmethod
+    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+        if output_folder is None:
+            os.makedirs(cfg.OUTPUT_DIR+f"/eval/{dataset_name}", exist_ok=True)
+
+        return CustomCOCOEvaluator(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
+
+
 class SickTreesAugmentedTrainer(DefaultTrainer):
 
     @classmethod
@@ -135,7 +137,7 @@ class SickTreesAugmentedTrainer(DefaultTrainer):
         if output_folder is None:
             os.makedirs(cfg.OUTPUT_DIR+f"/eval/{dataset_name}", exist_ok=True)
 
-        return COCOEvaluator(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
+        return CustomCOCOEvaluator(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
 
 
 class SickTreesNDVIAugmentedTrainer(DefaultTrainer):
@@ -158,4 +160,4 @@ class SickTreesNDVIAugmentedTrainer(DefaultTrainer):
         if output_folder is None:
             os.makedirs(cfg.OUTPUT_DIR+f"/eval/{dataset_name}", exist_ok=True)
 
-        return COCOEvaluator(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
+        return CustomCOCOEvaluator(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")

@@ -3,6 +3,7 @@ import cv2
 import pandas as pd
 import geopandas as gpd
 import numpy as np
+import pickle
 
 import imgaug as ia
 import imgaug.augmenters as iaa
@@ -16,6 +17,11 @@ from detectron2.data import DatasetCatalog, MetadataCatalog
 from sklearn.model_selection import train_test_split
 
 from typing import List, Dict, Set, Union, Optional, Tuple
+
+
+BASE_DATA_PATH = "data/training/RGBN/"
+TRAIN_VAL_MAPS = ["szprotawa", "swiebodzin", "lubsko", "zagan", "torzym"]
+TEST_MAPS = ["sulechow_slawa"]
 
 
 def split_train_val_test(samples, train_ratio, val_ratio, test_ratio=None):
@@ -41,6 +47,33 @@ def split_train_val_test(samples, train_ratio, val_ratio, test_ratio=None):
     return {"train": train,
             "val": val,
             "test": test}
+
+
+def get_splits_for_multipart_dataset(base_path, train_val_maps, test_maps):
+
+    if os.path.exists(f"{base_path}/train_val_test_splits.pkl"):
+        print("Reusing existing splits_file")
+        with open(f"{base_path}/train_val_test_splits.pkl", "rb") as f:
+            splits = pickle.load(f)
+    else:
+        splits = {'train': {}, 'val': {}, 'test': {}}
+        for part in train_val_maps:
+            samples = pd.read_pickle(
+                f"{base_path}/{part}/annotation.pkl")["patch_number"].unique()
+            part_splits = split_train_val_test(samples, 0.8, 0.2, 0)
+            for d in part_splits:
+                splits[d][part] = part_splits[d]
+
+        for part in test_maps:
+            samples = pd.read_pickle(
+                f"{base_path}/{part}/annotation.pkl")["patch_number"].unique()
+            part_splits = {'train': [], 'val': [], 'test': samples}
+            for d in part_splits:
+                splits[d][part] = part_splits[d]
+
+        with open(f"{base_path}/train_val_test_splits.pkl", "wb") as f:
+            pickle.dump(splits, f)
+    return splits
 
 
 class DatasetsDictsGenerator:
