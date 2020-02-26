@@ -12,7 +12,8 @@ from detectron2.structures import BoxMode
 
 class Augmenter:
 
-    def __init__(self, flip_probability=0.5,
+    def __init__(self, augmentation_ratio=1.0,
+                 flip_probability=0.5,
                  contrast_probability=0.2,
                  defocus_probability=0.1,
                  motion_blur_probability=0.2,
@@ -34,23 +35,24 @@ class Augmenter:
         contrast = iaa.imgcorruptlike.Contrast(severity=1)
 
         aug_weather = iaa.Sequential([
-            iaa.Sometimes(fog_probability, fog),
+            iaa.Sometimes(augmentation_ratio * fog_probability, fog),
         ], random_order=True)
 
         aug_initial = iaa.Sequential([
             rot,
             iaa.Sometimes(flip_probability, flip),
-            iaa.Sometimes(contrast_probability, contrast)
+            iaa.Sometimes(augmentation_ratio * contrast_probability, contrast)
         ], random_order=True)
 
         aug_camera = iaa.Sequential([
-            iaa.Sometimes(defocus_probability, defocus),
-            iaa.Sometimes(motion_blur_probability, motion_blur),
+            iaa.Sometimes(augmentation_ratio * defocus_probability, defocus),
+            iaa.Sometimes(augmentation_ratio *
+                          motion_blur_probability, motion_blur),
         ], random_order=False)
 
         aug_obstacles = iaa.Sequential([
-            iaa.Sometimes(cutout_probability, cutout),
-            iaa.Sometimes(scale_probability, scale),
+            iaa.Sometimes(augmentation_ratio * cutout_probability, cutout),
+            iaa.Sometimes(augmentation_ratio * scale_probability, scale),
             iaa.Sometimes(shift_probability, shift)
         ], random_order=False)
 
