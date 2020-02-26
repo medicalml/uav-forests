@@ -24,7 +24,7 @@ from detectron2.config import CfgNode
 
 from src.utils.dataset import split_train_val_test
 from src.utils.augmenter import Augmenter
-from src.utils.custom_coco_evaluator import COCOEvaluatorWithRecall
+from src.utils.custom_evaluators import COCOEvaluatorWithRecall, SickTreesEvaluator
 
 
 from typing import List, Dict
@@ -117,7 +117,11 @@ class SickTreesCFGTrainer(DefaultTrainer):
         if output_folder is None:
             os.makedirs(cfg.OUTPUT_DIR+f"/eval/{dataset_name}", exist_ok=True)
 
-        return COCOEvaluatorWithRecall(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
+        return DatasetEvaluators([
+            COCOEvaluatorWithRecall(dataset_name, cfg, False,
+                                    output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}"),
+            SickTreesEvaluator()
+        ])
 
 
 class SickTreesAugmentedTrainer(DefaultTrainer):
@@ -140,7 +144,11 @@ class SickTreesAugmentedTrainer(DefaultTrainer):
         if output_folder is None:
             os.makedirs(cfg.OUTPUT_DIR+f"/eval/{dataset_name}", exist_ok=True)
 
-        return COCOEvaluatorWithRecall(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
+        return DatasetEvaluators([
+            COCOEvaluatorWithRecall(dataset_name, cfg, False,
+                                    output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}"),
+            SickTreesEvaluator()
+        ])
 
 
 class SickTreesNDVIAugmentedTrainer(DefaultTrainer):
@@ -163,4 +171,8 @@ class SickTreesNDVIAugmentedTrainer(DefaultTrainer):
         if output_folder is None:
             os.makedirs(cfg.OUTPUT_DIR+f"/eval/{dataset_name}", exist_ok=True)
 
-        return COCOEvaluatorWithRecall(dataset_name, cfg, False, output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}")
+        return DatasetEvaluators([
+            COCOEvaluatorWithRecall(dataset_name, cfg, False,
+                                    output_dir=cfg.OUTPUT_DIR+f"/eval/{dataset_name}"),
+            SickTreesEvaluator()
+        ])
