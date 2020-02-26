@@ -7,11 +7,11 @@ tboard_logs/
 
 data
 data/*
-
+out/
 *.pkl
 *.hd5
 *.shp
-
+run.py
 ### Data ###
 *.csv
 *.dat

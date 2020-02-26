@@ -8,7 +8,9 @@ import rasterio as rio
 import rasterio.windows
 import shapely as shp
 import tqdm
+import sys
 
+sys.path.insert(1, '/home/h/uav-forests')
 from src.utils.coordinates_converters import coordinates_to_window
 from src.utils.infrared import nir_to_ndvi
 
@@ -109,7 +111,9 @@ def rolling_window(tiff_handler, shapes_df, target_dir,
                         tile = tile[:, :, :3]
                         if convert_to_bgr:
                             tile = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
-                        
+                    #tile[:, :,0] = tile[:, :, 3] #creates ndvi + green + blue
+                    #tile[:, :, 3].fill(255)  #alpha channel is 255
+                    
                     cv2.imwrite(f"{target_dir}/patch_{index}.png", tile)
 
                     annotations += [{"patch_number": index, **s} for s in shapes]
