@@ -4,40 +4,46 @@ import detectron2.config
 import detectron2.checkpoint
 import detectron2.engine
 from src.utils.image_processing import sliding_window_iterator
+from typing import Optional
 
 
 class SickTreesDetectron2Detector:
 
     def __init__(self, config_yml_path: str, weights_snapshot_path: str,
-                 patch_size: int = 256, bgr_input: bool = True):
+                 patch_size: int = 256, bgr_input: bool = True, device='cuda'):
         """
         Class for sick trees detection using basic detectron2 based model.
         """
-        self.cfg = dt2.config.get_cfg()
-        self.cfg.merge_from_file(config_yml_path)
+        self.cfg = dt2.config.CfgNode(
+            dt2.config.CfgNode.load_yaml_with_base(config_yml_path))
         self.cfg.MODEL.WEIGHTS = weights_snapshot_path
+        self.cfg.MODEL.DEVICE = device
 
         self.predictor = dt2.engine.DefaultPredictor(self.cfg)
         self.patch_size = patch_size
         self.bgr_input = bgr_input
 
-    def detect(self, rgb_image: np.ndarray, ndvi_image: np.ndarray,
-               forest_mask: np.ndarray):
+    def detect(self, rgb_image: np.ndarray, ndvi_image: Optional[np.ndarray] = None):
         assert 3 == len(rgb_image.shape), \
             "RGB image array should be 3-dimensional"
-        assert 2 == len(ndvi_image.shape), \
+        assert ndvi_image is None or 2 == len(ndvi_image.shape), \
             "NDVI image array should be 2-dimensional"
-        assert 2 == len(forest_mask.shape), \
-            "Forest mask array should be 2-dimensional"
-        assert rgb_image.shape[:2] == ndvi_image.shape, \
+        # assert 2 == len(forest_mask.shape), \
+        #     "Forest mask array should be 2-dimensional"
+        assert ndvi_image is None or rgb_image.shape[:2] == ndvi_image.shape, \
             "NDVI image should have the same height and width as RGB"
-        assert rgb_image.shape[:2] == forest_mask.shape, \
-            "Forest mask should have the same height and width as RGB"
+        # assert rgb_image.shape[:2] == forest_mask.shape, \
+        #     "Forest mask should have the same height and width as RGB"
 
         if self.bgr_input:
             rgb_image = rgb_image[:, :, ::-1]
 
-        image = rgb_image * forest_mask[..., np.newaxis]
+        if ndvi_image is not None:
+            image = np.dstack([rgb_image, ndvi_image])
+        else:
+            image = rgb_image
+
+        # image = rgb_image * forest_mask[..., np.newaxis]
         predictions = []
         for row, col, window in sliding_window_iterator(image, self.patch_size):
             pred = self._detect_on_patch(window, row, col)

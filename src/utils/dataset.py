@@ -80,10 +80,12 @@ class DatasetsDictsGenerator:
 
     def __init__(self, images_dir: str, patches_subset: Union[List, Set],
                  min_bbox_area: Union[int, float] = 200,
+                 min_aspect_ratio: float = 0.1,
                  limit_samples: int = -1):
         self.images_dir = images_dir
         self.patches_subset = patches_subset
         self.min_bbox_area = min_bbox_area
+        self.min_aspect_ratio = min_aspect_ratio
         self.limit_samples = limit_samples
 
     @staticmethod
@@ -113,6 +115,10 @@ class DatasetsDictsGenerator:
             f"{self.images_dir}/annotation.pkl").set_geometry("bbox")
         annotations = annotations[annotations["bbox"].area >=
                                   self.min_bbox_area]
+
+        annotations = annotations[annotations["bbox"].apply(self.aspect_ratio) >=
+                                  self.min_aspect_ratio]
+
         annotations = annotations[(annotations["patch_number"]
                                    .isin(self.patches_subset[:self.limit_samples]))]
 
@@ -124,10 +130,22 @@ class DatasetsDictsGenerator:
                        image_shape=(256, 256))
                 .tolist())
 
+    def aspect_ratio(self, bbox_shape):
+        if bbox_shape.area > 0:
+            x, y = bbox_shape.exterior.xy
+            x = x[:2]  # first 2 x values are distinct
+            y = y[1:3]  # 1 and 2 y values are distinct
+            dim_1 = max(x) - min(x)
+            dim_2 = max(y) - min(y)
+            return min(dim_1, dim_2) / max(dim_1, dim_2)
+        else:
+            return 0
+
 
 def register_detectron2_datasets(name: str, images_dir: str,
                                  splits: Dict[str, Union[List, Set]],
                                  min_bbox_area: Union[int, float] = 200,
+                                 min_aspect_ratio: float = 0.1,
                                  limits: Optional[Dict[str, int]] = None):
     if limits is None:
         limits = {"train": -1, "val": -1, "test": -1}
@@ -137,6 +155,7 @@ def register_detectron2_datasets(name: str, images_dir: str,
                                 DatasetsDictsGenerator(images_dir,
                                                        splits[d],
                                                        min_bbox_area,
+                                                       min_aspect_ratio,
                                                        limits[d]))
 
         MetadataCatalog.get(f"{name}_{d}").set(thing_classes=["SickTrees"])
@@ -145,13 +164,15 @@ def register_detectron2_datasets(name: str, images_dir: str,
 def register_detectron2_multipart_datasets(name: str,
                                            parts_images_dirs: Dict[str, str],
                                            splits: Dict[str, Dict[str, Union[List, Set]]],
-                                           min_bbox_area: Union[int, float] = 200):
+                                           min_bbox_area: Union[int, float] = 200,
+                                           min_aspect_ratio: float = 0.1):
     for d in splits.keys():
         parts_loaders = []
         for part_name, part_dir in parts_images_dirs.items():
             part_loader = DatasetsDictsGenerator(part_dir,
                                                  splits[d][part_name],
-                                                 min_bbox_area)
+                                                 min_bbox_area,
+                                                 min_aspect_ratio)
             parts_loaders.append(part_loader)
 
         def total_loader(parts_loaders=parts_loaders):
