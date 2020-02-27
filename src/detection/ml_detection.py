@@ -10,13 +10,14 @@ from typing import Optional
 class SickTreesDetectron2Detector:
 
     def __init__(self, config_yml_path: str, weights_snapshot_path: str,
-                 patch_size: int = 256, bgr_input: bool = True):
+                 patch_size: int = 256, bgr_input: bool = True, device='cuda'):
         """
         Class for sick trees detection using basic detectron2 based model.
         """
         self.cfg = dt2.config.CfgNode(
             dt2.config.CfgNode.load_yaml_with_base(config_yml_path))
         self.cfg.MODEL.WEIGHTS = weights_snapshot_path
+        self.cfg.MODEL.DEVICE = device
 
         self.predictor = dt2.engine.DefaultPredictor(self.cfg)
         self.patch_size = patch_size
