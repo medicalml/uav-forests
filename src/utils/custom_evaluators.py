@@ -1,28 +1,86 @@
-import contextlib
-import copy
-import io
 import itertools
 import json
-import logging
 import numpy as np
-import os
-import pickle
+import shapely as shp
 from collections import OrderedDict
-import pycocotools.mask as mask_util
-import torch
-from fvcore.common.file_io import PathManager
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval
 from tabulate import tabulate
 
-import detectron2.utils.comm as comm
-from detectron2.data import MetadataCatalog
-from detectron2.data.datasets.coco import convert_to_coco_json
-from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from detectron2.utils.logger import create_small_table
 
 from detectron2.evaluation.evaluator import DatasetEvaluator
 from detectron2.evaluation import COCOEvaluator
+from detectron2.data.detection_utils import BoxMode
+
+
+class SickTreesEvaluator(DatasetEvaluator):
+
+    def __init__(self, thresholds=(0, 25, 50, 75), log_inputs_and_outputs=False):
+        self.thresholds = thresholds
+        self.log_inputs_and_outputs = log_inputs_and_outputs
+
+    def reset(self):
+        self.inputs = []
+        self.outputs = []
+        self.ground_truths_count = 0
+        self.detections_count = 0
+        self.detected_ground_truths_counts = {t: 0 for t in self.thresholds}
+        self.correct_detections_counts = {t: 0 for t in self.thresholds}
+
+    def process(self, inputs, outputs):
+        assert inputs[0]["annotations"][0]["bbox_mode"] == BoxMode.XYXY_ABS, \
+            "Only BoxMode.XYXY_ABS supported"
+
+        if self.log_inputs_and_outputs:
+            self.inputs += inputs
+            self.outputs += outputs
+
+        for input, output in zip(inputs, outputs):
+
+            self.ground_truths_count += len(input["annotations"])
+            self.detections_count += len(output["instances"])
+
+            boxes = [shp.geometry.box(*pred_box.tolist())
+                     for pred_box in output['instances'].pred_boxes]
+            gtruths = [shp.geometry.box(*ann['bbox'])
+                       for ann in input['annotations']]
+
+            for gt in gtruths:
+                cover, _ = self._get_intersections_and_matching_geom(gt, boxes)
+                cover_percentage = cover.area / gt.area * 100
+                for t in self.thresholds:
+                    if cover_percentage > t:
+                        self.detected_ground_truths_counts[t] += 1
+
+            for box in boxes:
+                cover, _ = self._get_intersections_and_matching_geom(
+                    box, gtruths)
+                cover_percentage = cover.area / box.area * 100
+                for t in self.thresholds:
+                    if cover_percentage > t:
+                        self.correct_detections_counts[t] += 1
+
+    def _get_intersections_and_matching_geom(self, base, geoms):
+        matching_geom = []
+        intersections = []
+        for geom in geoms:
+            overlap = base.intersection(geom)
+            if not overlap.is_empty:
+                matching_geom.append(geom)
+                intersections.append(overlap)
+
+        intersections = shp.geometry.MultiPolygon(intersections).buffer(0)
+        matching_geom = shp.geometry.MultiPolygon(matching_geom).buffer(0)
+        return intersections, matching_geom
+
+    def evaluate(self):
+        recalls = {f"Recall_{t}": self.detected_ground_truths_counts[t] / self.ground_truths_count
+                   for t in self.thresholds}
+        precisions = {f"Precision_{t}": self.correct_detections_counts[t] / self.detections_count
+                      for t in self.thresholds}
+        return {"sick_trees_bbox": {"ground_truth_count": self.ground_truths_count,
+                                    "detections_count": self.detections_count,
+                                    **recalls,
+                                    **precisions}}
 
 
 class COCOEvaluatorWithRecall(COCOEvaluator):
