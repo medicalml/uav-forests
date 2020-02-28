@@ -57,6 +57,8 @@ if __name__ == '__main__':
         with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w', 'ESRI Shapefile', schema) as output_shapefile:
             it = ForestIterator(args.geotiff, shape_path, channels_first=False)
 
+            idx = 1
+
             for patch in tqdm(it):
                 rgb = patch['rgb']
 
@@ -64,12 +66,12 @@ if __name__ == '__main__':
 
                 res = detector.detect(rgb)
 
-                for idx, detection in enumerate(res):
+                for detection in res:
                     row_min, col_min = detection["row_min"], detection["col_min"]
                     row_max, col_max = detection["row_max"], detection["col_max"]
 
-                    row_0, col_0 = row_min, col_min
-                    row_1, col_1 = row_min, col_max
+                    row_0, col_0 = row_min, col_max
+                    row_1, col_1 = row_min, col_min
                     row_2, col_2 = row_max, col_min
                     row_3, col_3 = row_max, col_max
 
@@ -84,9 +86,13 @@ if __name__ == '__main__':
                     x_3, y_3 = rio.transform.xy(it.rgb_tif_handler.transform, row_3, col_3)
 
                     polygon = Polygon([(x_0, y_0), (x_1, y_1), (x_2, y_2), (x_3, y_3), (x_0, y_0)])
-                    # print(polygon)
+                    print(polygon)
+                    print()
 
                     output_shapefile.write({
                         'geometry': mapping(polygon),
                         'properties': {'id': idx},
                     })
+
+                    idx += 1
+                # break
