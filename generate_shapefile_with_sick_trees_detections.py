@@ -59,7 +59,8 @@ if __name__ == '__main__':
         shape_path = args.shapefile
         schema = {
             'geometry': 'Polygon',
-            'properties': {"id": "int"}
+            'properties': {"id": "int",
+                           "score": "float"}
         }
 
         with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w', 'ESRI Shapefile', schema) as output_shapefile:
