@@ -55,6 +55,10 @@ class SickTreesDetectron2Detector:
 
     def _detect_on_patch(self, patch: np.ndarray,
                          row_offset: int, col_offset: int):
+
+        if (patch == 0).all():
+            return []
+
         patch_shape = (self.patch_size, self.patch_size, patch.shape[2])
         background = np.zeros(patch_shape, dtype=np.uint8)
         background[:patch.shape[0], :patch.shape[1]] = patch
