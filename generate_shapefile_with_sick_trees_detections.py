@@ -34,6 +34,8 @@ if __name__ == '__main__':
     parser.add_argument("--threshold", nargs='?', required=False, default=0.4, type=float, help="thresold for sick trees detctions")
     parser.add_argument("--suspend_mask", dest="no_masking", action="store_true", default=False,
                         help="whether to use the masking capability")
+    parser.add_argument("--start_id", default=0, help="First Area id to count trees in")
+    parser.add_argument("--end_id", default=-1, help="Last Area id to count trees in")
 
 
     args = parser.parse_args()
