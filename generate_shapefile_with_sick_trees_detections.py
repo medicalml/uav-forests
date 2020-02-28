@@ -39,6 +39,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
+
+
     if args.device:
         device = "cuda"
     else:
@@ -61,10 +63,15 @@ if __name__ == '__main__':
         with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w', 'ESRI Shapefile', schema) as output_shapefile:
             it = ForestIterator(args.geotiff, shape_path, channels_first=False)
 
+            if int(args.end_id) == -1 or int(args.end_id) > len(it):
+                end_id = len(it)
+
             idx = 0
 
-            for patch in tqdm(it):
-                rgb = patch['rgb']
+            for i in tqdm(range(int(args.start_id), int(end_id))):
+                patch = it[i]
+                if patch is not None:
+                    rgb = patch['rgb']
 
 
                 patch_row_max, patch_col_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])

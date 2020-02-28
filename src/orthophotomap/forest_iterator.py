@@ -77,6 +77,10 @@ class ForestIterator:
 
     def __getitem__(self, item):
         single_shape = self.shapes_handler[item]
+
+        if single_shape is None:
+            return None
+
         shp = self.initiate_geoms(single_shape['geometry'])
         x = np.asarray([point[0] for poly in shp for point in poly])
         y = np.asarray([point[1] for poly in shp for point in poly])
@@ -93,8 +97,8 @@ class ForestIterator:
         img = rio.plot.reshape_as_image(
             self.rgb_tif_handler.read(bands, window=win))
 
-        alpha_channel = rio.plot.reshape_as_image(
-            self.rgb_tif_handler.read([4], window=win))
+        alpha_channel = rio.plot.reshape_as_image(self.rgb_tif_handler.read([4], window=win))
+
 
         mask = self.build_mask(img, shp,
                                col_offset=win.col_off,
