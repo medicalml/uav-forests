@@ -66,8 +66,6 @@ if __name__ == '__main__':
             for patch in tqdm(it):
                 rgb = patch['rgb']
 
-                if idx > 0:
-                    continue
 
                 patch_row_max, patch_col_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
 
