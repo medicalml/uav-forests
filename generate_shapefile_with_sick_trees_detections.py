@@ -11,7 +11,7 @@ from src.orthophotomap.forest_iterator import ForestIterator
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog="generate_shapefile_with_sick_trees_detections.py",
-                                     description=("Detect sick trees on a given shapefile.\nExample command: \n"
+                                     description=("Detect sick trees on a given tiff file.\nExample command: \n"
                                                   + " " * 4
                                                   + "python3 generate_shapefile_with_sick_trees_detections.py \\\n"
                                                   + " " * 9
@@ -31,9 +31,13 @@ if __name__ == '__main__':
     parser.add_argument("--weights", required=True, help="Neural Netowork weighs file")
     parser.add_argument("--cpu", dest="device", action="store_true", default=False,
                         help="whether to use the masking capability")
-    # parser.add_argument("--threshold", required=False, nargs='?', const=0.3, type=float, help="thresold for sick trees detctions")
+    parser.add_argument("--threshold", nargs='?', required=False, default=0.4, type=float, help="thresold for sick trees detctions")
+    parser.add_argument("--suspend_mask", dest="no_masking", action="store_true", default=False,
+                        help="whether to use the masking capability")
+
 
     args = parser.parse_args()
+
 
     if args.device:
         device = "cuda"
@@ -41,7 +45,7 @@ if __name__ == '__main__':
         device = "cpu"
 
     detector = SickTreesDetectron2Detector(args.config_file,
-                                           args.weights, device=device)
+                                           args.weights, device=device, threshold=args.threshold)
 
 
     if not os.path.exists(args.target_dir):
@@ -57,10 +61,13 @@ if __name__ == '__main__':
         with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w', 'ESRI Shapefile', schema) as output_shapefile:
             it = ForestIterator(args.geotiff, shape_path, channels_first=False)
 
-            idx = 1
+            idx = 0
 
             for patch in tqdm(it):
                 rgb = patch['rgb']
+
+                if idx > 0:
+                    continue
 
                 patch_row_max, patch_col_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
 
@@ -86,8 +93,8 @@ if __name__ == '__main__':
                     x_3, y_3 = rio.transform.xy(it.rgb_tif_handler.transform, row_3, col_3)
 
                     polygon = Polygon([(x_0, y_0), (x_1, y_1), (x_2, y_2), (x_3, y_3), (x_0, y_0)])
-                    print(polygon)
-                    print()
+                    # print(polygon)
+                    # print()
 
                     output_shapefile.write({
                         'geometry': mapping(polygon),
@@ -95,4 +102,3 @@ if __name__ == '__main__':
                     })
 
                     idx += 1
-                # break
