@@ -14,17 +14,18 @@ from detectron2.data.detection_utils import BoxMode
 
 class SickTreesEvaluator(DatasetEvaluator):
 
-    def __init__(self, thresholds=(0, 25, 50, 75), log_inputs_and_outputs=False):
-        self.thresholds = thresholds
+    def __init__(self, area_thresholds=(0, 25, 50, 75),
+                 score_threshold=0, log_inputs_and_outputs=False):
+        self.score_threshold = score_threshold
+        self.area_thresholds = area_thresholds
         self.log_inputs_and_outputs = log_inputs_and_outputs
 
     def reset(self):
         self.inputs = []
         self.outputs = []
+        self.samples = []
         self.ground_truths_count = 0
         self.detections_count = 0
-        self.detected_ground_truths_counts = {t: 0 for t in self.thresholds}
-        self.correct_detections_counts = {t: 0 for t in self.thresholds}
 
     def process(self, inputs, outputs):
         assert inputs[0]["annotations"][0]["bbox_mode"] == BoxMode.XYXY_ABS, \
@@ -44,20 +45,9 @@ class SickTreesEvaluator(DatasetEvaluator):
             gtruths = [shp.geometry.box(*ann['bbox'])
                        for ann in input['annotations']]
 
-            for gt in gtruths:
-                cover, _ = self._get_intersections_and_matching_geom(gt, boxes)
-                cover_percentage = cover.area / gt.area * 100
-                for t in self.thresholds:
-                    if cover_percentage > t:
-                        self.detected_ground_truths_counts[t] += 1
-
-            for box in boxes:
-                cover, _ = self._get_intersections_and_matching_geom(
-                    box, gtruths)
-                cover_percentage = cover.area / box.area * 100
-                for t in self.thresholds:
-                    if cover_percentage > t:
-                        self.correct_detections_counts[t] += 1
+            self.samples.append({"ground_truths": gtruths,
+                                 "detections": boxes,
+                                 "scores": [score for score in output['instances'].scores]})
 
     def _get_intersections_and_matching_geom(self, base, geoms):
         matching_geom = []
@@ -73,12 +63,40 @@ class SickTreesEvaluator(DatasetEvaluator):
         return intersections, matching_geom
 
     def evaluate(self):
-        recalls = {f"Recall_{t}": self.detected_ground_truths_counts[t] / self.ground_truths_count
-                   for t in self.thresholds}
-        precisions = {f"Precision_{t}": self.correct_detections_counts[t] / self.detections_count
-                      for t in self.thresholds}
+        detections_count = 0
+        detected_ground_truths_counts = {
+            t: 0 for t in self.area_thresholds}
+        correct_detections_counts = {t: 0 for t in self.area_thresholds}
+
+        for sample in self.samples:
+
+            detections = [detection for score, detection
+                          in zip(sample["scores"], sample["detections"])
+                          if score >= self.score_threshold]
+            detections_count += len(detections)
+
+            for gt in sample["ground_truths"]:
+                cover, _ = self._get_intersections_and_matching_geom(
+                    gt, detections)
+                cover_percentage = cover.area / gt.area * 100
+                for t in self.area_thresholds:
+                    if cover_percentage > t:
+                        detected_ground_truths_counts[t] += 1
+
+            for box in detections:
+                cover, _ = self._get_intersections_and_matching_geom(
+                    box, sample["ground_truths"])
+                cover_percentage = cover.area / box.area * 100
+                for t in self.area_thresholds:
+                    if cover_percentage > t:
+                        correct_detections_counts[t] += 1
+
+        recalls = {f"Recall_{t}": detected_ground_truths_counts[t] / self.ground_truths_count
+                   for t in self.area_thresholds}
+        precisions = {f"Precision_{t}": detections_count and correct_detections_counts[t] / detections_count
+                      for t in self.area_thresholds}
         return {"sick_trees_bbox": {"ground_truth_count": self.ground_truths_count,
-                                    "detections_count": self.detections_count,
+                                    "detections_count": detections_count,
                                     **recalls,
                                     **precisions}}
 
