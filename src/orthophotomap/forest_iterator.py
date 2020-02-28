@@ -99,6 +99,7 @@ class ForestIterator:
 
         alpha_channel = rio.plot.reshape_as_image(self.rgb_tif_handler.read([4], window=win))
 
+
         mask = self.build_mask(img, shp,
                                col_offset=win.col_off,
                                row_offset=win.row_off)
