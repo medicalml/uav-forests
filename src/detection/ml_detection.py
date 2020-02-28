@@ -10,7 +10,7 @@ from typing import Optional
 class SickTreesDetectron2Detector:
 
     def __init__(self, config_yml_path: str, weights_snapshot_path: str,
-                 patch_size: int = 256, bgr_input: bool = True, device='cuda'):
+                 patch_size: int = 256, bgr_input: bool = True, device='cuda', threshold: float = 0.3):
         """
         Class for sick trees detection using basic detectron2 based model.
         """
@@ -18,6 +18,8 @@ class SickTreesDetectron2Detector:
             dt2.config.CfgNode.load_yaml_with_base(config_yml_path))
         self.cfg.MODEL.WEIGHTS = weights_snapshot_path
         self.cfg.MODEL.DEVICE = device
+
+        self.cfg.MODEL.RETINANET.SCORE_THRESH_TEST = threshold
 
         self.predictor = dt2.engine.DefaultPredictor(self.cfg)
         self.patch_size = patch_size
