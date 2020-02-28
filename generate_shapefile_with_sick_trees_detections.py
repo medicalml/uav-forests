@@ -60,30 +60,30 @@ if __name__ == '__main__':
             for patch in tqdm(it):
                 rgb = patch['rgb']
 
-                row_max, col_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
+                patch_row_max, patch_col_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
 
                 res = detector.detect(rgb)
 
                 for idx, detection in enumerate(res):
-                    x_min, y_min = detection["row_min"], detection["col_min"]
-                    x_max, y_max = detection["row_max"], detection["col_max"]
+                    row_min, col_min = detection["row_min"], detection["col_min"]
+                    row_max, col_max = detection["row_max"], detection["col_max"]
 
-                    x0, y0 = x_min, y_min
-                    x1, y1 = x_min, y_max
-                    x2, y2 = x_max, y_min
-                    x3, y3 = x_max, y_max
+                    row_0, col_0 = row_min, col_min
+                    row_1, col_1 = row_min, col_max
+                    row_2, col_2 = row_max, col_min
+                    row_3, col_3 = row_max, col_max
 
-                    row_0, col_0 = x0 + row_max, y0 + col_min
-                    row_1, col_1 = x1 + row_max, y1 + col_min
-                    row_2, col_2 = x2 + row_max, y2 + col_min
-                    row_3, col_3 = x3 + row_max, y3 + col_min
+                    row_0, col_0 = row_0 + patch_row_max, col_0 + patch_col_min
+                    row_1, col_1 = row_1 + patch_row_max, col_1 + patch_col_min
+                    row_2, col_2 = row_2 + patch_row_max, col_2 + patch_col_min
+                    row_3, col_3 = row_3 + patch_row_max, col_3 + patch_col_min
 
-                    lon_0, lan_0 = rio.transform.xy(it.rgb_tif_handler.transform, row_0, col_0)
-                    lon_1, lan_1 = rio.transform.xy(it.rgb_tif_handler.transform, row_1, col_1)
-                    lon_2, lan_2 = rio.transform.xy(it.rgb_tif_handler.transform, row_2, col_2)
-                    lon_3, lan_3 = rio.transform.xy(it.rgb_tif_handler.transform, row_3, col_3)
+                    x_0, y_0 = rio.transform.xy(it.rgb_tif_handler.transform, row_0, col_0)
+                    x_1, y_1 = rio.transform.xy(it.rgb_tif_handler.transform, row_1, col_1)
+                    x_2, y_2 = rio.transform.xy(it.rgb_tif_handler.transform, row_2, col_2)
+                    x_3, y_3 = rio.transform.xy(it.rgb_tif_handler.transform, row_3, col_3)
 
-                    polygon = Polygon([(lon_0, lan_0), (lon_1, lan_1), (lon_2, lan_2), (lon_3, lan_3), (lon_0, lan_0)])
+                    polygon = Polygon([(x_0, y_0), (x_1, y_1), (x_2, y_2), (x_3, y_3), (x_0, y_0)])
                     # print(polygon)
 
                     output_shapefile.write({
