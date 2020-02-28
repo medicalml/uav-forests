@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
                     output_shapefile.write({
                         'geometry': mapping(polygon),
-                        'properties': {'id': idx},
+                        'properties': {'id': idx, "score": detection["score"]},
                     })
 
                     idx += 1
