@@ -18,7 +18,8 @@ def coordinates_to_window(rio_handler, x_min, y_min, x_max, y_max,
                               height=np.abs(row_1 - row_2) + tb_margin)
 
 
-def convert_geoometry_from_pixel_to_coords(rio_handler: rio.DatasetReader, geometry: Union[Polygon, MultiPolygon],
+def convert_geoometry_from_pixel_to_coords(rio_handler: rio.DatasetReader,
+                                           geometry: Union[Polygon, MultiPolygon],
                                            row_offset=0, col_offset=0):
     """
     Convert shapely geometry represented in pixel coordinates to geographic
