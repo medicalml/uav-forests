@@ -14,7 +14,8 @@ from src.orthophotomap.forest_segmentation import ForestSegmentation
 from src.utils.image_processing import sliding_window_iterator
 from src.utils.shapefile_modifications import update_shapefile
 
-if __name__ == '__main__':
+
+def main():
     parser = argparse.ArgumentParser(prog="generate_shapefile_with_trees_positions.py",
                                      description=("Count tree on geotiff.\nExample command: \n"
                                                   + " " * 4
@@ -109,5 +110,9 @@ if __name__ == '__main__':
 
             path, filename = os.path.split(shape_path)
             filename, extenstion = os.path.splitext(filename)
-            save_path = os.path.join(args.target_dir, filename+"_updated"+extenstion)
+            save_path = os.path.join(args.target_dir, filename + "_updated" + extenstion)
             update_shapefile(shape_path, save_path, edit_initial_shape, ["drzewa"], {"drzewa": "int32"}, args.index)
+
+
+if __name__ == '__main__':
+    main()

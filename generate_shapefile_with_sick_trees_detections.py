@@ -9,7 +9,7 @@ from tqdm import tqdm
 from src.detection.ml_detection import SickTreesDetectron2Detector
 from src.orthophotomap.forest_iterator import ForestIterator
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(prog="generate_shapefile_with_sick_trees_detections.py",
                                      description=("Detect sick trees on a given tiff file.\nExample command: \n"
                                                   + " " * 4
@@ -26,22 +26,19 @@ if __name__ == '__main__':
 
     parser.add_argument("--geotiff", required=True, help="path to geotiff file")
     parser.add_argument("--shapefile", required=True, help="path to shapefile annotation file")
-    parser.add_argument("--target_dir", required=True, help ="directory to store output shape with tree positions")
+    parser.add_argument("--target_dir", required=True, help="directory to store output shape with tree positions")
     parser.add_argument("--config_file", required=True, help="Neural Netowork configuration")
     parser.add_argument("--weights", required=True, help="Neural Netowork weighs file")
     parser.add_argument("--cpu", dest="device", action="store_true", default=False,
                         help="whether to use the masking capability")
-    parser.add_argument("--threshold", nargs='?', required=False, default=0.4, type=float, help="thresold for sick trees detctions")
+    parser.add_argument("--threshold", nargs='?', required=False, default=0.4, type=float,
+                        help="thresold for sick trees detctions")
     parser.add_argument("--suspend_mask", dest="no_masking", action="store_true", default=False,
                         help="whether to use the masking capability")
     parser.add_argument("--start_id", default=0, help="First Area id to count trees in")
     parser.add_argument("--end_id", default=-1, help="Last Area id to count trees in")
 
-
     args = parser.parse_args()
-
-
-
 
     if args.device:
         device = "cuda"
@@ -50,7 +47,6 @@ if __name__ == '__main__':
 
     detector = SickTreesDetectron2Detector(args.config_file,
                                            args.weights, device=device, threshold=args.threshold)
-
 
     if not os.path.exists(args.target_dir):
         os.mkdir(args.target_dir)
@@ -76,8 +72,8 @@ if __name__ == '__main__':
                 if patch is not None:
                     rgb = patch['rgb']
 
-
-                patch_row_max, patch_col_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"], patch["y_max"])
+                patch_row_max, patch_col_min = rio.transform.rowcol(it.rgb_tif_handler.transform, patch["x_min"],
+                                                                    patch["y_max"])
 
                 res = detector.detect(rgb)
 
@@ -110,3 +106,7 @@ if __name__ == '__main__':
                     })
 
                     idx += 1
+
+
+if __name__ == '__main__':
+    main()
