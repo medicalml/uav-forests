@@ -43,18 +43,21 @@ if __name__ == '__main__':
         os.mkdir(args.target_dir)
 
     with rio.open(args.geotiff) as geotiff:
-        shape_path = args.shapefile
-        schema = {
-            'geometry': 'Polygon',
-            'properties': {"id": "int"}
-        }
-        # Write a new Shapefile
-        with fiona.open(os.path.join(args.target_dir, 'forest_mask.shp'), 'w', 'ESRI Shapefile', schema) as output_shapefile:
 
-            forest_iterator = ForestIterator(
-                args.geotiff, shape_path, channels_first=False)
-            segmenter = ForestSegmentation()
-            converter = SegMaskToGeometryConverter()
+        shape_path = args.shapefile
+
+        forest_iterator = ForestIterator(args.geotiff, shape_path,
+                                         channels_first=False)
+        segmenter = ForestSegmentation()
+        converter = SegMaskToGeometryConverter()
+
+        # Write a new Shapefile
+        schema = {'geometry': 'Polygon',
+                  'properties': {"id": "int"}}
+
+        with fiona.open(os.path.join(args.target_dir, 'forest_mask.shp'), 'w',
+                        driver='ESRI Shapefile', schema=schema,
+                        crs=forest_iterator.shapes_handler.crs) as output_shapefile:
 
             if 0 <= int(args.end_id) < len(forest_iterator):
                 end_id = args.end_id
@@ -75,13 +78,5 @@ if __name__ == '__main__':
                 mask_polygon = convert_geoometry_from_pixel_to_coords(geotiff, converter.convert(mask),
                                                                       patch["row_min"], patch["col_min"])
 
-                output_shapefile.write({
-                    'geometry': mapping(mask_polygon),
-                    'properties': {'id': i},
-                })
-                # edit_initial_shape.append((patch["description"][args.index], number_of_trees))
-
-            # path, filename = os.path.split(shape_path)
-            # filename, extension = os.path.splitext(filename)
-            # save_path = os.path.join(args.target_dir, filename+"_updated"+extension)
-            # update_shapefile(shape_path, save_path, edit_initial_shape, ["drzewa"], {"drzewa": "int32"}, args.index)
+                output_shapefile.write({'geometry': mapping(mask_polygon),
+                                        'properties': patch["properties"]})

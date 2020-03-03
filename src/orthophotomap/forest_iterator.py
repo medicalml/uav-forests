@@ -97,8 +97,8 @@ class ForestIterator:
         img = rio.plot.reshape_as_image(
             self.rgb_tif_handler.read(bands, window=win))
 
-        alpha_channel = rio.plot.reshape_as_image(self.rgb_tif_handler.read([4], window=win))
-
+        alpha_channel = rio.plot.reshape_as_image(
+            self.rgb_tif_handler.read([4], window=win))
 
         mask = self.build_mask(img, shp,
                                col_offset=win.col_off,
@@ -128,7 +128,8 @@ class ForestIterator:
                   "row_min": row_min,
                   "row_max": row_max,
                   "col_min": col_min,
-                  "col_max": col_max}
+                  "col_max": col_max,
+                  "properties": single_shape["properties"]}
 
         if self.nir_path is not None:
             ndvi = self.create_ndvi(x.min(), y.min(), x.max(), y.max())
