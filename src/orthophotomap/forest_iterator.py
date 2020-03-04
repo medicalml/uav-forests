@@ -122,6 +122,7 @@ class ForestIterator:
         result = {"rgb": masked,
                   "description": single_shape['properties'],
                   "alpha_channel": masked_alpha_channel,
+                  "mask": mask,
                   "x_min": x.min(),
                   "x_max": x.max(),
                   "y_min": y.min(),
@@ -151,8 +152,7 @@ class ForestIterator:
         if not self.apply_mask:
             return np.ones(img.shape[:2], dtype=np.uint8)
         # mask = np.zeros(img.shape[:2], dtype=np.uint8)
-
-        mask = rio.features.rasterize([shape], img.shape[:2], fill=255, dtype=np.uit8,
+        mask = rio.features.rasterize([shape], img.shape[:2], default_value=255, fill=0, dtype=np.uint8,
                                       transform=rio.windows.transform(win, self.rgb_tif_handler.transform))
         return mask
 
