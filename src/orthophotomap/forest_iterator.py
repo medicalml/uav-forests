@@ -2,6 +2,7 @@ import fiona
 import rasterio as rio
 import rasterio.mask
 import rasterio.plot
+import rasterio.features
 import numpy as np
 import cv2
 from shapely.geometry import Point
@@ -100,7 +101,7 @@ class ForestIterator:
         alpha_channel = rio.plot.reshape_as_image(
             self.rgb_tif_handler.read([4], window=win))
 
-        mask = self.build_mask(img, shp,
+        mask = self.build_mask(img, single_shape['geometry'], win,
                                col_offset=win.col_off,
                                row_offset=win.row_off)
 
@@ -138,7 +139,7 @@ class ForestIterator:
 
         return result
 
-    def build_mask(self, img, shapes, col_offset, row_offset):
+    def build_mask(self, img, shape, win, col_offset, row_offset):
         '''
         Build mask from the polygons from geometry
         :param img: numpy image to mask
@@ -149,13 +150,10 @@ class ForestIterator:
         '''
         if not self.apply_mask:
             return np.ones(img.shape[:2], dtype=np.uint8)
-        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        # mask = np.zeros(img.shape[:2], dtype=np.uint8)
 
-        for poly in shapes:
-            joint = [self.rgb_tif_handler.index(l[0], l[1]) for l in poly]
-            joint = np.array([[[l[1] - col_offset, l[0] - row_offset]
-                               for l in joint]], dtype=np.int32)
-            cv2.fillPoly(mask, pts=[joint], color=255)
+        mask = rio.features.rasterize([shape], img.shape[:2], fill=255, dtype=np.uit8,
+                                      transform=rio.windows.transform(win, self.rgb_tif_handler.transform))
         return mask
 
     def __len__(self):
