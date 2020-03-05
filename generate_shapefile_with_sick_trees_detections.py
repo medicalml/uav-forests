@@ -26,12 +26,15 @@ if __name__ == '__main__':
 
     parser.add_argument("--geotiff", required=True, help="path to geotiff file")
     parser.add_argument("--shapefile", required=True, help="path to shapefile annotation file")
-    parser.add_argument("--target_dir", required=True, help ="directory to store output shape with tree positions")
-    parser.add_argument("--config_file", required=True, help="Neural Netowork configuration")
-    parser.add_argument("--weights", required=True, help="Neural Netowork weighs file")
+    parser.add_argument("--target_dir", required=True, help ="directory to store output shape with trees positions")
+    parser.add_argument("--config_file", required=True, help="Neural Network configuration")
+    parser.add_argument("--weights", required=True, help="Neural Network weights file")
     parser.add_argument("--cpu", dest="device", action="store_true", default=False,
                         help="whether to use the masking capability")
-    parser.add_argument("--threshold", nargs='?', required=False, default=0.4, type=float, help="thresold for sick trees detctions")
+    parser.add_argument("--threshold", nargs='?', required=False, default=0.4, type=float, help="threshold for sick trees detctions")
+    parser.add_argument("--no-overlap", dest="overlap", action="store_false", default=True, 
+                        help="whether to detect trees on overlapping tiles. Dafault: overlapping enabled. "
+                             "Disable to speed up computing by roughly ~20\%. Detection quality may drop.")
     parser.add_argument("--suspend_mask", dest="no_masking", action="store_true", default=False,
                         help="whether to use the masking capability")
     parser.add_argument("--start_id", default=0, help="First Area id to count trees in")
@@ -48,8 +51,10 @@ if __name__ == '__main__':
     else:
         device = "cpu"
 
-    detector = SickTreesDetectron2Detector(args.config_file,
-                                           args.weights, device=device, threshold=args.threshold)
+    detector = SickTreesDetectron2Detector(args.config_file, args.weights, 
+                                           device=device, threshold=args.threshold,
+                                           overlap_windows=args.overlap, 
+                                           postprocess=True)
 
 
     if not os.path.exists(args.target_dir):
@@ -60,7 +65,14 @@ if __name__ == '__main__':
         schema = {
             'geometry': 'Polygon',
             'properties': {"id": "int",
-                           "score": "float"}
+                           "geometry_area": "float",
+                           "top_detection_area": "float",
+                           "score": "float",
+                           "score_mean": "float",
+                           "score_min": "float",
+                           "score_max": "float",
+                           "score_weighted": "float",
+                           "nb_detections": "int"}
         }
 
         with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w', 'ESRI Shapefile', schema) as output_shapefile:
@@ -106,7 +118,9 @@ if __name__ == '__main__':
 
                     output_shapefile.write({
                         'geometry': mapping(polygon),
-                        'properties': {'id': idx, "score": detection["score"]},
+                        'properties': {'id': idx, **{detection.get(key) 
+                                                     for key in schema["properties"] 
+                                                     if key != "id"}},
                     })
 
                     idx += 1
