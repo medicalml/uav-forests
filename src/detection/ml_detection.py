@@ -10,6 +10,9 @@ import detectron2.engine
 from src.utils.image_processing import sliding_window_iterator
 from typing import Optional, List, Dict
 
+# import pdb
+# pdb.set_trace()
+
 
 class BatchedPredictor(dt2.engine.DefaultPredictor):
     def __call__(self, original_images_bgr):
@@ -50,8 +53,7 @@ class SickTreesDetectron2Detector:
     def __init__(self, config_yml_path: str, weights_snapshot_path: str,
                  patch_size: int = 256, bgr_input: bool = True, device='cuda',
                  threshold: float = 0.3, batch_size: int = 32,
-                 overlap_windows=True, overlap_pixels=None,
-                 postprocess=True):
+                 overlap_windows=True, overlap_pixels=None):
         """
         Class for sick trees detection using basic detectron2 based model.
         """
@@ -68,11 +70,6 @@ class SickTreesDetectron2Detector:
         self.batch_size = batch_size
         self.overlap_windows = overlap_windows
         self.overlap_pixels = overlap_pixels if overlap_pixels is not None else self.DEFAULT_OVERLAP_PIXELS
-        self.postprocess = postprocess
-        if self.postprocess:
-            self.postprocessor = DetectionsPostProcessor()
-        else:
-            self.postprocessor = lambda x: x
 
     def detect(self, rgb_image: np.ndarray, ndvi_image: Optional[np.ndarray] = None):
         assert 3 == len(rgb_image.shape), \
@@ -117,12 +114,9 @@ class SickTreesDetectron2Detector:
                 buffer_offsets = []
                 buffer_patches = []
 
-        if len(buffer_patches) >= self.batch_size:
+        if len(buffer_patches) > 0:
             predictions += self._detect_on_batch(buffer_patches,
                                                  buffer_offsets)
-
-        if self.postprocess:
-            predictions = self.postprocessor(predictions)
 
         return predictions
 
@@ -166,6 +160,8 @@ class DetectionsPostProcessor:
         return self.process(predictions)
 
     def process(self, predictions):
+        if len(predictions) == 0:
+            return predictions
         predictions_df = self.convert_predictions_to_df(predictions)
         groups_df = self.find_grouped_detections(predictions_df)
 
@@ -182,13 +178,16 @@ class DetectionsPostProcessor:
                                                      p["col_max"], p["row_max"])}
                 for i, p in enumerate(predictions)],
             geometry="detection_geometry")
+
         predictions_df["detection_area"] = predictions_df["detection_geometry"].area
         return predictions_df
 
     def find_grouped_detections(self, detections_df):
 
         detection_groups = (detections_df["detection_geometry"]
-                            .buffer(self.buffer_size).unary_union.geoms)
+                            .buffer(self.buffer_size).unary_union)
+        if detection_groups.geom_type == "Polygon":
+            detection_groups = shp.geometry.MultiPolygon([detection_groups])
 
         groups_df = gpd.GeoDataFrame(
             [{"group_id": i, "group_geometry": detection_groups[i]}
@@ -210,16 +209,17 @@ class DetectionsPostProcessor:
 
         top_detections = grouped_df.groupby("group_id").apply(
             lambda df: (df[df["score"] == df["score"].max()]
-                        [["detection_geometry",
-                          "detection_area"]]
+                        [["group_id", "detection_geometry",
+                            "detection_area"]]
                         .iloc[:1]
                         .assign(score_weighted=self.compute_contribution_weighted_score(df)))
-        )
+        ).reset_index(drop=True)
+
         top_detections = top_detections.rename(columns={"detection_area": "top_detection_area",
                                                         "detection_geometry": "top_detection_geometry"})
 
-        refined_predictions = refined_predictions.merge(
-            top_detections, on="group_id")
+        refined_predictions = refined_predictions.merge(top_detections,
+                                                        on="group_id")
         refined_predictions["score"] = refined_predictions["score_max"]
 
         refined_predictions = refined_predictions[["geometry", "geometry_area",
