@@ -45,9 +45,13 @@ class BatchedPredictor(dt2.engine.DefaultPredictor):
 
 class SickTreesDetectron2Detector:
 
+    DEFAULT_OVERLAP_PIXELS = 16
+
     def __init__(self, config_yml_path: str, weights_snapshot_path: str,
                  patch_size: int = 256, bgr_input: bool = True, device='cuda',
-                 threshold: float = 0.3, batch_size: int = 32):
+                 threshold: float = 0.3, batch_size: int = 32,
+                 overlap_windows=True, overlap_pixels=None,
+                 postprocess=True):
         """
         Class for sick trees detection using basic detectron2 based model.
         """
@@ -62,6 +66,13 @@ class SickTreesDetectron2Detector:
         self.patch_size = patch_size
         self.bgr_input = bgr_input
         self.batch_size = batch_size
+        self.overlap_windows = overlap_windows
+        self.overlap_pixels = overlap_pixels if overlap_pixels is not None else self.DEFAULT_OVERLAP_PIXELS
+        self.postprocess = postprocess
+        if self.postprocess:
+            self.postprocessor = DetectionsPostProcessor()
+        else:
+            self.postprocessor = lambda x: x
 
     def detect(self, rgb_image: np.ndarray, ndvi_image: Optional[np.ndarray] = None):
         assert 3 == len(rgb_image.shape), \
@@ -87,7 +98,12 @@ class SickTreesDetectron2Detector:
         predictions = []
         buffer_patches = []
         buffer_offsets = []
-        for row, col, window in sliding_window_iterator(image, self.patch_size):
+
+        step = self.patch_size
+        if self.overlap_windows and (self.overlap_pixels < self.patch_size):
+            step = self.patch_size - self.overlap_pixels
+
+        for row, col, window in sliding_window_iterator(image, self.patch_size, step):
 
             patch = self._prepare_patch(window)
 
@@ -104,6 +120,9 @@ class SickTreesDetectron2Detector:
         if len(buffer_patches) >= self.batch_size:
             predictions += self._detect_on_batch(buffer_patches,
                                                  buffer_offsets)
+
+        if self.postprocess:
+            predictions = self.postprocessor(predictions)
 
         return predictions
 
