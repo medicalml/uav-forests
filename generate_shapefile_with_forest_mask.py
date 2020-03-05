@@ -52,8 +52,7 @@ if __name__ == '__main__':
         converter = SegMaskToGeometryConverter()
 
         # Write a new Shapefile
-        schema = {'geometry': 'Polygon',
-                  'properties': {"id": "int"}}
+        schema = forest_iterator.shapes_handler.schema
 
         with fiona.open(os.path.join(args.target_dir, 'forest_mask.shp'), 'w',
                         driver='ESRI Shapefile', schema=schema,
