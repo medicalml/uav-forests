@@ -52,7 +52,7 @@ def perform_tree_counting(args):
                     if not args.no_masking:
                         mask = masking_tool.mask(forest_img)
                     else:
-                        mask = np.ones(forest_img.shape[0:2])
+                        mask = np.ones(forest_img.shape[0:2], dtype=np.uint8)
 
                     number_of_trees = 0
                     for forest_iterator_output, mask_iterator_output, alpha_iterator in \
