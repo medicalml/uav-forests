@@ -11,7 +11,7 @@ def main():
     default_weights_path = os.path.join(os.getcwd(), "model", "model_weights.pth")
     default_config_path = os.path.join(os.getcwd(), "model", "config.yml")
 
-    parser = GooeyParser(description = "Tree counting app")
+    parser = GooeyParser(description = "Sick tree detection app")
     parser.add_argument('geotiff', help="Path to RGG geotiff", widget='FileChooser', )
 
     parser.add_argument('shapefile', help="Patch to shapefile", widget='FileChooser', )
