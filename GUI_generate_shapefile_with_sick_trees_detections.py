@@ -13,15 +13,10 @@ def main():
 
     parser = GooeyParser(description = "Sick tree detection app")
     parser.add_argument('geotiff', help="Path to RGG geotiff", widget='FileChooser', )
-
     parser.add_argument('shapefile', help="Patch to shapefile", widget='FileChooser', )
-
     parser.add_argument('target_dir', help="Where should result files be saved", widget='DirChooser', )
-
     parser.add_argument("--config_file", widget='FileChooser', help="Neural Netowork configuration", default=default_config_path)
-
     parser.add_argument("--weights", widget='FileChooser', help="Neural Netowork weighs file", default=default_weights_path)
-
     parser.add_argument("--device", dest="CPU", action="store_true", default=False,
                         help="Should programme use CPU instead of GPU")
     parser.add_argument("--threshold", default=0.4, type=float,
