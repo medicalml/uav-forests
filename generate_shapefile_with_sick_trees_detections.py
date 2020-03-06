@@ -45,6 +45,9 @@ def perform_sick_tree_detection(args):
         if int(args.end_id) == -1 or int(args.end_id) > len(forest_iterator):
             end_id = len(forest_iterator)
 
+        else:
+            end_id = args.end_id
+
         with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w',
                         driver='ESRI Shapefile', schema=schema,
                         crs=forest_iterator.shapes_handler.crs) as output_shapefile:
