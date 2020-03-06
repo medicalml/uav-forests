@@ -27,15 +27,13 @@ def main():
         action="store_true",
         help="Should Counting mask be suspended"
     )
-    parser.add_argument("--overlap", action="store_false", default=True,
-                        help="Should overlap be turned off")
+    parser.add_argument("--overlap", action="store_true", default=True,
+                        help="Should overlap be turned on")
                         # help="whether to detect trees on overlapping tiles")
 
     parser.add_argument('--start_id', help="First Area id to count trees in", default="0")
     parser.add_argument('--end_id', help="Last Area id to count trees in", default=-1)
     # parser.add_argument('index', help="Parameter table index name", default="id_ob")
-
-
 
     args = parser.parse_args()
     args.start_id = int(args.start_id)
