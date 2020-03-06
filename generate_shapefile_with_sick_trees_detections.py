@@ -11,47 +11,7 @@ from src.orthophotomap.forest_iterator import ForestIterator
 from src.utils.coordinates_converters import convert_geoometry_from_pixel_to_coords
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog="generate_shapefile_with_sick_trees_detections.py",
-                                     description=("Detect sick trees on a given tiff file.\nExample command: \n"
-                                                  + " " * 4
-                                                  + "python3 generate_shapefile_with_sick_trees_detections.py \\\n"
-                                                  + " " * 9
-                                                  + "  --geotiff file.tiff --shapefile file.shp \\\n"
-                                                  + " " * 9
-                                                  + "  --target_dir folder_were_I_want_to_store_trees_positons/ \n"
-                                                  + " " * 9
-                                                  + " --config_file config.yml"
-                                                  + " " * 9
-                                                  + " --weights_file model_weights.pth"),
-                                     formatter_class=argparse.RawTextHelpFormatter)
-
-    parser.add_argument("--geotiff", required=True,
-                        help="path to geotiff file")
-    parser.add_argument("--shapefile", required=True,
-                        help="path to shapefile annotation file")
-    parser.add_argument("--target_dir", required=True,
-                        help="directory to store output shape with trees positions")
-    parser.add_argument("--config_file", required=True,
-                        help="Neural Network configuration")
-    parser.add_argument("--weights", required=True,
-                        help="Neural Network weights file")
-    parser.add_argument("--cpu", dest="device", action="store_true", default=False,
-                        help="whether to use the masking capability")
-    parser.add_argument("--threshold", nargs='?', required=False,
-                        default=0.4, type=float, help="threshold for sick trees detctions")
-    parser.add_argument("--no-overlap", dest="overlap", action="store_false", default=True,
-                        help="whether to detect trees on overlapping tiles. Dafault: overlapping enabled. "
-                             "Disable to speed up computing by roughly ~20\%. Detection quality may drop.")
-    parser.add_argument("--suspend_mask", dest="no_masking", action="store_true", default=False,
-                        help="whether to use the masking capability")
-    parser.add_argument("--start_id", default=0,
-                        help="First Area id to count trees in")
-    parser.add_argument("--end_id", default=-1,
-                        help="Last Area id to count trees in")
-
-    args = parser.parse_args()
-
+def perform_sick_tree_detection(args):
     if args.device:
         device = "cuda"
     else:
@@ -121,3 +81,51 @@ if __name__ == '__main__':
                                            if key != "id"}}
                          })
                     idx += 1
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="generate_shapefile_with_sick_trees_detections.py",
+                                     description=("Detect sick trees on a given tiff file.\nExample command: \n"
+                                                  + " " * 4
+                                                  + "python3 generate_shapefile_with_sick_trees_detections.py \\\n"
+                                                  + " " * 9
+                                                  + "  --geotiff file.tiff --shapefile file.shp \\\n"
+                                                  + " " * 9
+                                                  + "  --target_dir folder_were_I_want_to_store_trees_positons/ \n"
+                                                  + " " * 9
+                                                  + " --config_file config.yml"
+                                                  + " " * 9
+                                                  + " --weights_file model_weights.pth"),
+                                     formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument("--geotiff", required=True,
+                        help="path to geotiff file")
+    parser.add_argument("--shapefile", required=True,
+                        help="path to shapefile annotation file")
+    parser.add_argument("--target_dir", required=True,
+                        help="directory to store output shape with trees positions")
+    parser.add_argument("--config_file", required=True,
+                        help="Neural Network configuration")
+    parser.add_argument("--weights", required=True,
+                        help="Neural Network weights file")
+    parser.add_argument("--cpu", dest="device", action="store_true", default=False,
+                        help="whether to use the masking capability")
+    parser.add_argument("--threshold", nargs='?', required=False,
+                        default=0.4, type=float, help="threshold for sick trees detctions")
+    parser.add_argument("--no-overlap", dest="overlap", action="store_false", default=True,
+                        help="whether to detect trees on overlapping tiles. Dafault: overlapping enabled. "
+                             "Disable to speed up computing by roughly ~20\%. Detection quality may drop.")
+    parser.add_argument("--suspend_mask", dest="no_masking", action="store_true", default=False,
+                        help="whether to use the masking capability")
+    parser.add_argument("--start_id", default=0,
+                        help="First Area id to count trees in")
+    parser.add_argument("--end_id", default=-1,
+                        help="Last Area id to count trees in")
+
+    args = parser.parse_args()
+
+    perform_sick_tree_detection(args)
+
+
+if __name__ == '__main__':
+    main()
