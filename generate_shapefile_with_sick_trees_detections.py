@@ -3,11 +3,12 @@ import os
 
 import fiona
 import rasterio as rio
-from shapely.geometry import Polygon, mapping
+from shapely.geometry import Polygon, mapping, shape
 from tqdm import tqdm
 
-from src.detection.ml_detection import SickTreesDetectron2Detector
+from src.detection.ml_detection import SickTreesDetectron2Detector, DetectionsPostProcessor
 from src.orthophotomap.forest_iterator import ForestIterator
+from src.utils.coordinates_converters import convert_geoometry_from_pixel_to_coords
 
 
 def perform_sick_tree_detection(args):
@@ -27,19 +28,34 @@ def perform_sick_tree_detection(args):
         schema = {
             'geometry': 'Polygon',
             'properties': {"id": "int",
-                           "score": "float"}
+                           "geometry_area": "float",
+                           "top_detection_area": "float",
+                           "score": "float",
+                           "score_mean": "float",
+                           "score_min": "float",
+                           "score_max": "float",
+                           "score_weighted": "float",
+                           "nb_detections": "int"}
         }
 
-        with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w', 'ESRI Shapefile', schema) as output_shapefile:
-            it = ForestIterator(args.geotiff, shape_path, channels_first=False)
+        forest_iterator = ForestIterator(args.geotiff, shape_path,
+                                         channels_first=False)
+        detector = SickTreesDetectron2Detector(args.config_file, args.weights,
+                                               device=device, threshold=args.threshold,
+                                               overlap_windows=args.overlap)
+        postprocessor = DetectionsPostProcessor()
 
-            if int(args.end_id) == -1 or int(args.end_id) > len(it):
-                end_id = len(it)
+        if int(args.end_id) == -1 or int(args.end_id) > len(forest_iterator):
+            end_id = len(forest_iterator)
+
+        with fiona.open(os.path.join(args.target_dir, 'trees.shp'), 'w',
+                        driver='ESRI Shapefile', schema=schema,
+                        crs=forest_iterator.shapes_handler.crs) as output_shapefile:
 
             idx = 0
 
             for i in tqdm(range(int(args.start_id), int(end_id))):
-                patch = it[i]
+                patch = forest_iterator[i]
                 if patch is not None:
                     rgb = patch['rgb']
 
@@ -48,34 +64,22 @@ def perform_sick_tree_detection(args):
 
                 res = detector.detect(rgb)
 
-                for detection in res:
-                    row_min, col_min = detection["row_min"], detection["col_min"]
-                    row_max, col_max = detection["row_max"], detection["col_max"]
+                    polygon = convert_geoometry_from_pixel_to_coords(
+                        forest_iterator.rgb_tif_handler, detection["geometry"],
+                        row_offset=patch["row_min"], col_offset=patch["col_min"])
 
-                    row_0, col_0 = row_min, col_max
-                    row_1, col_1 = row_min, col_min
-                    row_2, col_2 = row_max, col_min
-                    row_3, col_3 = row_max, col_max
+                    final_polygon = (polygon & forest_shape)
 
-                    row_0, col_0 = row_0 + patch_row_max, col_0 + patch_col_min
-                    row_1, col_1 = row_1 + patch_row_max, col_1 + patch_col_min
-                    row_2, col_2 = row_2 + patch_row_max, col_2 + patch_col_min
-                    row_3, col_3 = row_3 + patch_row_max, col_3 + patch_col_min
+                    if (final_polygon.area / polygon.area) < 0.5:
+                        continue
 
-                    x_0, y_0 = rio.transform.xy(it.rgb_tif_handler.transform, row_0, col_0)
-                    x_1, y_1 = rio.transform.xy(it.rgb_tif_handler.transform, row_1, col_1)
-                    x_2, y_2 = rio.transform.xy(it.rgb_tif_handler.transform, row_2, col_2)
-                    x_3, y_3 = rio.transform.xy(it.rgb_tif_handler.transform, row_3, col_3)
-
-                    polygon = Polygon([(x_0, y_0), (x_1, y_1), (x_2, y_2), (x_3, y_3), (x_0, y_0)])
-                    # print(polygon)
-                    # print()
-
-                    output_shapefile.write({
-                        'geometry': mapping(polygon),
-                        'properties': {'id': idx, "score": detection["score"]},
-                    })
-
+                    output_shapefile.write(
+                        {'geometry': mapping(final_polygon),
+                         'properties': {'id': idx,
+                                        **{key: detection.get(key)
+                                           for key in schema["properties"]
+                                           if key != "id"}}
+                         })
                     idx += 1
 
 def main():

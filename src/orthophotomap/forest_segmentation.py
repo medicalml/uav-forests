@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from skimage.filters.rank import entropy
 from skimage.morphology import disk
+from shapely.geometry import Polygon
+
 
 from src.utils.image_processing import apply_brightness_contrast
 
@@ -46,7 +48,8 @@ class ForestSegmentation:
             dilated_img = cv2.dilate(plane, np.ones((7, 7), np.uint8))
             bg_img = cv2.medianBlur(dilated_img, 21)
             diff_img = 255 - cv2.absdiff(plane, bg_img)
-            norm_img = cv2.normalize(diff_img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+            norm_img = cv2.normalize(
+                diff_img, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
             result_norm_planes.append(norm_img)
         return cv2.merge(result_norm_planes)
 
@@ -57,12 +60,15 @@ class ForestSegmentation:
         :return: mask with the shadows cut out
         '''
         r_gray = cv2.cvtColor(rgb_shadowed, cv2.COLOR_RGB2GRAY)
-        r_gray = apply_brightness_contrast(r_gray, self.shadow_brightness_correction, self.shadow_contrast_correction)
+        r_gray = apply_brightness_contrast(
+            r_gray, self.shadow_brightness_correction, self.shadow_contrast_correction)
         entr = entropy(r_gray, disk(self.shadow_entropy_size))
         entr = (entr - entr.min()) / (entr.max() - entr.min())
         entr = cv2.GaussianBlur(entr, (5, 5), cv2.BORDER_DEFAULT)
-        kernel = np.ones((self.shadow_opening_size, self.shadow_opening_size), np.uint8)
-        ret, mask_r = cv2.threshold(entr, self.shadow_threshold, 1, cv2.THRESH_BINARY)
+        kernel = np.ones(
+            (self.shadow_opening_size, self.shadow_opening_size), np.uint8)
+        ret, mask_r = cv2.threshold(
+            entr, self.shadow_threshold, 1, cv2.THRESH_BINARY)
         mask_r = cv2.morphologyEx(mask_r, cv2.MORPH_OPEN, kernel)
         return np.uint8(mask_r)
 
@@ -73,11 +79,15 @@ class ForestSegmentation:
         :return: mask of everything without tree texture
         '''
         l_channel = cv2.cvtColor(rgb_img, cv2.COLOR_RGB2GRAY)
-        l_channel = apply_brightness_contrast(l_channel, self.rgb_brightness_correction, self.rgb_contrast_correction)
+        l_channel = apply_brightness_contrast(
+            l_channel, self.rgb_brightness_correction, self.rgb_contrast_correction)
         entr_new = entropy(l_channel, disk(self.rgb_entropy_size))
-        entr_new = (entr_new - entr_new.min()) / (entr_new.max() - entr_new.min())
-        kernel = np.ones((self.rgb_opening_size, self.rgb_opening_size), np.uint8)
-        ret, mask_r_new = cv2.threshold(entr_new, self.rgb_threshold, 1, cv2.THRESH_BINARY)
+        entr_new = (entr_new - entr_new.min()) / \
+            (entr_new.max() - entr_new.min())
+        kernel = np.ones(
+            (self.rgb_opening_size, self.rgb_opening_size), np.uint8)
+        ret, mask_r_new = cv2.threshold(
+            entr_new, self.rgb_threshold, 1, cv2.THRESH_BINARY)
         mask_r_new = cv2.morphologyEx(mask_r_new, cv2.MORPH_OPEN, kernel)
         return np.uint8(mask_r_new)
 
@@ -98,3 +108,71 @@ class ForestSegmentation:
         mask_r_new = self.filter_entropy_by_color(img_new)
 
         return mask_r_new
+
+
+class SegMaskToGeometryConverter:
+
+    NEXT = 0
+    PREV = 1
+    FIRST_CHILD = 2
+    PARENT = 3
+
+    def __init__(self, approx_rule=cv2.CHAIN_APPROX_SIMPLE):
+
+        self.approx_rule = approx_rule
+
+    def _build_from_hierarchy(self, contours, hierarchy,
+                              start_idx=0, agg_shape=Polygon()):
+        idx = start_idx
+        while idx >= 0:
+            agg_shape = self._evolve_shape(agg_shape,
+                                           contours[idx].squeeze())
+
+            level_info = hierarchy[idx]
+            if level_info[self.FIRST_CHILD] >= 0:
+                agg_shape = self._build_from_hierarchy(contours, hierarchy,
+                                                       level_info[self.FIRST_CHILD],
+                                                       agg_shape)
+            idx = level_info[self.NEXT]
+        return agg_shape
+
+    def _evolve_shape(self, agg_shape, contour):
+        contour_shape = Polygon(contour.squeeze())
+
+        if contour_shape.intersects(agg_shape):
+            agg_shape = agg_shape - contour_shape
+        else:
+            agg_shape = agg_shape | contour_shape
+
+        return agg_shape
+
+    def _find_beginning_of_hierarchy(self, hierarchy):
+        parents = hierarchy[:, self.PARENT]
+        predecessors = hierarchy[:, self.PREV]
+        condition = (parents < 0) & (predecessors < 0)
+        idx = np.flatnonzero(condition).item()
+        return idx
+
+    def convert(self, mask: np.ndarray):
+        """
+        Convert raster mask to shapely geometry.
+        :param mask: 2-dimensional array representing a binary mask
+        :return: Shapely geometry - Polygon or MultiPolygon
+        """
+        contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE,
+                                               self.approx_rule)
+
+        if hierarchy.ndim == 3:
+            hierarchy = hierarchy[0]
+
+        start_idx = self._find_beginning_of_hierarchy(hierarchy)
+        geometry = self._build_from_hierarchy(contours, hierarchy, start_idx)
+        return geometry
+
+    def __call__(self, mask: np.ndarray):
+        """
+        Convert raster mask to shapely geometry.
+        :param mask: 2-dimensional array representing a binary mask
+        :return: Shapely geometry - Polygon or MultiPolygon
+        """
+        return self.convert(mask)
