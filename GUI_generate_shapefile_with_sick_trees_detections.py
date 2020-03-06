@@ -22,8 +22,8 @@ def main():
 
     parser.add_argument("--weights", widget='FileChooser', help="Neural Netowork weighs file", default=default_weights_path)
 
-    parser.add_argument("--cpu", dest="device", action="store_true", default=False,
-                        help="Should programme use CPU insted of GPU")
+    parser.add_argument("--device", dest="CPU", action="store_true", default=False,
+                        help="Should programme use CPU instead of GPU")
     parser.add_argument("--threshold", default=0.4, type=float,
                         help="thresold for sick trees detctions")
     parser.add_argument(

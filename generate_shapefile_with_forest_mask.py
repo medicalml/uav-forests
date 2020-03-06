@@ -15,30 +15,7 @@ from src.utils.image_processing import sliding_window_iterator
 from src.utils.shapefile_modifications import update_shapefile
 from src.utils.coordinates_converters import convert_geoometry_from_pixel_to_coords
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog="generate_shapefile_with_forest_mask.py",
-                                     description=("Generate forest mask from geotiff.\nExample command: \n"
-                                                  + " " * 4
-                                                  + "python3 generate_shapefile_with_forest_mask.py \\\n"
-                                                  + " " * 9
-                                                  + "  --geotiff file.tiff --shapefile file.shp \\\n"
-                                                  + " " * 9
-                                                  + "  --target_dir folder_were_I_want_to_store_forest_mask/ \n"),
-                                     formatter_class=argparse.RawTextHelpFormatter)
-
-    parser.add_argument("--geotiff", required=True,
-                        help="path to geotiff file")
-    parser.add_argument("--shapefile", required=True,
-                        help="path to shapefile annotation file")
-    parser.add_argument("--target_dir", required=True,
-                        help="directory to store output shape with forest mask")
-    parser.add_argument("--start_id", default=0, help="First Area id to mask")
-    parser.add_argument("--end_id", default=-1, help="Last Area id to mask")
-    parser.add_argument("--index", default="id_ob",
-                        help="Parameter table index name")
-
-    args = parser.parse_args()
-
+def perform_mask_generation(args):
     if not os.path.exists(args.target_dir):
         os.mkdir(args.target_dir)
 
@@ -79,3 +56,33 @@ if __name__ == '__main__':
 
                 output_shapefile.write({'geometry': mapping(mask_polygon),
                                         'properties': patch["properties"]})
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="generate_shapefile_with_forest_mask.py",
+                                     description=("Generate forest mask from geotiff.\nExample command: \n"
+                                                  + " " * 4
+                                                  + "python3 generate_shapefile_with_forest_mask.py \\\n"
+                                                  + " " * 9
+                                                  + "  --geotiff file.tiff --shapefile file.shp \\\n"
+                                                  + " " * 9
+                                                  + "  --target_dir folder_were_I_want_to_store_forest_mask/ \n"),
+                                     formatter_class=argparse.RawTextHelpFormatter)
+
+    parser.add_argument("--geotiff", required=True,
+                        help="path to geotiff file")
+    parser.add_argument("--shapefile", required=True,
+                        help="path to shapefile annotation file")
+    parser.add_argument("--target_dir", required=True,
+                        help="directory to store output shape with forest mask")
+    parser.add_argument("--start_id", default=0, help="First Area id to mask")
+    parser.add_argument("--end_id", default=-1, help="Last Area id to mask")
+    parser.add_argument("--index", default="id_ob",
+                        help="Parameter table index name")
+
+    args = parser.parse_args()
+
+    perform_mask_generation(args)
+
+if __name__ == '__main__':
+    main()
