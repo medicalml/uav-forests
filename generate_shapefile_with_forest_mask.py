@@ -3,16 +3,11 @@ import os
 
 import fiona
 import rasterio as rio
-import numpy as np
 from shapely.geometry import Point, mapping
 from tqdm import tqdm
-import cv2
 
-from src.counting.classical_tree_counter import TreeCounter
 from src.orthophotomap.forest_iterator import ForestIterator
 from src.orthophotomap.forest_segmentation import ForestSegmentation, SegMaskToGeometryConverter
-from src.utils.image_processing import sliding_window_iterator
-from src.utils.shapefile_modifications import update_shapefile
 from src.utils.coordinates_converters import convert_geoometry_from_pixel_to_coords
 
 def perform_mask_generation(args):
