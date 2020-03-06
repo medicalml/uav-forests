@@ -233,7 +233,7 @@ dependencies:
     - protobuf==3.11.3
     - pyasn1==0.4.8
     - pyasn1-modules==0.2.8
-    - git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI
+    - "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
     - pydot==1.4.1
     - pyqt5-sip==4.19.18
     - pyqtwebengine==5.12.1
